@@ -19,6 +19,7 @@
 
 static const char *TAG = "mqtt";
 
+static char message[64];
 static bool is_mqtt_connected = false; 
 static bool status_overriden_led = false;
 static int mqtt_target_r = 0, mqtt_target_g = 0, mqtt_target_b = 0;
@@ -98,10 +99,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 if (cJSON_IsString(state)) {
                     if (strcmp(state->valuestring, "off") == 0) {
                         ESP_LOGI(TAG, "LED State: OFF");
+                        esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: off", 0, 1, 1 ); 
                         led2_deinit();
                     } 
                     else if (strcmp(state->valuestring, "on") == 0) {
                         ESP_LOGI(TAG, "LED State: ON");
+                        esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: on", 0, 1, 1 ); 
                         led2_init();
                     }
                 }
@@ -166,7 +169,10 @@ void task_cmd_manager(void *pvParameters)
             mqtt_target_b = cmd.b;
             
             set_status_overriden_led(true);
-            
+            snprintf(message, sizeof(message), "led set(%d, %d, %d)", mqtt_target_r, mqtt_target_g, mqtt_target_b);
+
+            esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1 ); 
+
             ESP_LOGI("CMD_TASK", "Color applied once: %d, %d, %d", cmd.r, cmd.g, cmd.b);
         }
     }
