@@ -1,0 +1,225 @@
+
+#include <stdio.h>
+#include <inttypes.h>
+
+#include "sdkconfig.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "esp_chip_info.h"
+#include "esp_flash.h"
+#include "esp_system.h"
+#include "esp_log.h"
+
+#include "led_ctrl.h"
+#include "esp_random.h" 
+#include "freertos/queue.h"
+#include "esp_timer.h"
+#include <string.h>
+#include <stdlib.h>
+
+static const char *TAG = "APP";
+
+typedef struct {
+    int deviceID;
+    int measurementID;
+    float temperature;
+} DataPackage_t;
+
+QueueHandle_t xSensorQueue;
+
+void task_sender(void *pvParameters)
+{
+    DataPackage_t DataToSend;
+    DataToSend.deviceID = 100;
+    DataToSend.measurementID = 0;
+
+    while(1)
+    {
+        DataToSend.temperature = 20 + (float)(esp_random() % 100)/ 10;
+        DataToSend.measurementID++;
+        printf("[Sender] Sending measuremen #%d (Temp: %.2f)...\n",
+        DataToSend.measurementID, DataToSend.temperature);
+        
+        if (xQueueSend(xSensorQueue, &DataToSend, portMAX_DELAY) != pdPASS)
+        {
+            printf("[Sender] Failde to send!\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+void task_receiver(void *pvParameters)
+{
+    DataPackage_t receivedData;
+    while(1)
+    {
+      if  (xQueueReceive(xSensorQueue, &receivedData, portMAX_DELAY) == pdTRUE)
+      {
+        printf("[Receiver] GOT DATA! Device: %d | ID: %d | Temd: %.2f\n",
+        receivedData.deviceID, receivedData.measurementID, receivedData.temperature);
+      }
+    }
+}
+
+typedef struct {
+    const char *name;
+    uint32_t period_ms;
+    uint32_t busy_ms;
+} load_cfg_t;
+
+
+static void print_chip_info(void)
+{
+    esp_chip_info_t chip_info;
+    uint32_t flash_size = 0;
+
+    esp_chip_info(&chip_info);
+
+    printf("This is %s chip with %d CPU core(s), %s%s%s%s, ",
+           CONFIG_IDF_TARGET,
+           chip_info.cores,
+           (chip_info.features & CHIP_FEATURE_WIFI_BGN) ? "WiFi/" : "",
+           (chip_info.features & CHIP_FEATURE_BT) ? "BT" : "",
+           (chip_info.features & CHIP_FEATURE_BLE) ? "BLE" : "",
+           (chip_info.features & CHIP_FEATURE_IEEE802154) ? ", 802.15.4 (Zigbee/Thread)" : "");
+
+    unsigned major_rev = chip_info.revision / 100;
+    unsigned minor_rev = chip_info.revision % 100;
+    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
+
+    if (esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
+        printf("Get flash size failed\n");
+        return;
+    }
+
+    printf("%" PRIu32 "MB %s flash\n", flash_size / (uint32_t)(1024 * 1024),
+           (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+
+    printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+}
+
+static void task_cpu_load(void *pvParameters)
+{
+    const load_cfg_t *cfg = (const load_cfg_t *)pvParameters;
+    TickType_t last_wake = xTaskGetTickCount();
+    const TickType_t period_ticks = pdMS_TO_TICKS(cfg->period_ms);
+
+    volatile uint32_t x = 0;
+
+    while (1) {
+        int64_t start_us = esp_timer_get_time();
+        while ((esp_timer_get_time() - start_us) < (int64_t)cfg->busy_ms * 1000LL) {
+            x += 3;
+            x ^= (x << 1);
+        }
+
+        printf("[LOAD] %s core=%d busy=%ums period=%ums\n",
+               cfg->name, xPortGetCoreID(),
+               (unsigned)cfg->busy_ms, (unsigned)cfg->period_ms);
+
+        vTaskDelayUntil(&last_wake, period_ticks);
+    }
+}
+
+
+static void task_system_status(void *pvParameters)
+{
+    (void)pvParameters;
+
+    static char list_buf[2048];
+    static char runtime_buf[2048];
+
+    while (1) {
+        printf("\n================ SYSTEM STATUS ================\n");
+        printf("Uptime: %lld ms\n", (long long)(esp_timer_get_time() / 1000));
+        printf("Free heap: %u bytes\n", (unsigned)esp_get_free_heap_size());
+
+        memset(list_buf, 0, sizeof(list_buf));
+        vTaskList(list_buf);
+        printf("\nTask          State  Prio  StackHW  Num\n");
+        printf("-------------------------------------------\n");
+        printf("%s\n", list_buf);
+
+        memset(runtime_buf, 0, sizeof(runtime_buf));
+        vTaskGetRunTimeStats(runtime_buf);
+        printf("CPU usage per task:\n");
+        printf("Task               AbsTime   %%Time\n");
+        printf("-----------------------------------\n");
+        printf("%s\n", runtime_buf);
+
+        UBaseType_t n = uxTaskGetNumberOfTasks();
+        TaskStatus_t *st = (TaskStatus_t *)malloc(n * sizeof(TaskStatus_t));
+        if (st) {
+            uint32_t total = 0;
+            n = uxTaskGetSystemState(st, n, &total);
+
+            printf("Status task running on core=%d\n", xPortGetCoreID());
+            printf("Core info:\n");
+            for (UBaseType_t i = 0; i < n; i++) {
+               printf(" - %-16s stackHW=%u\n",
+                st[i].pcTaskName,
+                (unsigned)st[i].usStackHighWaterMark);
+            }
+            free(st);
+        }
+
+        printf("================================================\n\n");
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
+void app_main(void)
+{
+
+
+    printf("Hello world!\n");
+    print_chip_info();    
+    xSensorQueue = xQueueCreate(5, sizeof(DataPackage_t));
+    if (xSensorQueue == NULL) {
+        ESP_LOGE(TAG, "Failed to create queue");
+        return;
+    }
+
+    xTaskCreate(task_sender,   "Sender_Task",   2048, NULL, 4, NULL);
+    xTaskCreate(task_receiver, "Receiver_Task", 2048, NULL, 4, NULL);
+
+    static load_cfg_t loadA = { .name="LOAD_A", .period_ms=1000, .busy_ms=300 };
+    static load_cfg_t loadB = { .name="LOAD_B", .period_ms=500,  .busy_ms=150 };
+
+    xTaskCreatePinnedToCore(task_cpu_load, "Load_A", 3072, &loadA, 5, NULL, 0);
+    xTaskCreatePinnedToCore(task_cpu_load, "Load_B", 3072, &loadB, 5, NULL, 1);
+
+    xTaskCreate(task_system_status, "Sys_Status", 4096, NULL, 3, NULL);
+
+#if CONFIG_MY_LED_ENABLE
+    const int period_ms =
+    #ifdef CONFIG_MY_BLINK_PERIOD_MS
+        CONFIG_MY_BLINK_PERIOD_MS;
+    #else
+        500;
+    #endif
+
+    ESP_LOGI(TAG, "LED enabled: gpio=%d active_high=%d period=%dms",
+             CONFIG_MY_LED_GPIO,
+             CONFIG_MY_LED_ACTIVE_HIGH ? 1 : 0,
+             period_ms);
+
+    led_ctrl_t led;
+    int rc = led_ctrl_init(&led, CONFIG_MY_LED_GPIO, CONFIG_MY_LED_ACTIVE_HIGH);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "led_ctrl_init failed rc=%d (gpio=%d)", rc, CONFIG_MY_LED_GPIO);
+        return;
+    }
+
+    while (1) {
+        led_ctrl_toggle(&led);
+        vTaskDelay(pdMS_TO_TICKS(period_ms));
+    }
+#else
+    ESP_LOGW(TAG, "LED feature disabled in menuconfig (MY_LED_ENABLE=n). Idle loop.");
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+#endif
+}
