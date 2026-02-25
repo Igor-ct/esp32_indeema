@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wi-Fi Setup</title>
+    <link rel="stylesheet" type="text/css" href="/index.css">
+</head>
+<body>
+    <div class="card">
+        <h2>Wi-Fi Setup</h2>
+        <form action="/save" method="post">
+            <label for="ssid">Network Name (SSID)</label>
+            <input type="text" id="ssid" name="ssid" placeholder="e.g. Tp-Link" required>
+
+            <label for="pass">Password</label>
+            <input type="password" id="pass" name="pass" placeholder="Enter password" required autocomplete="new-password">
+
+            <input type="submit" value="Connect">
+        </form>
+    </div>
+</body>
+</html>
