@@ -1,0 +1,3 @@
+# Default log level: INFO (0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose)
+CONFIG_LOG_DEFAULT_LEVEL=3
+CONFIG_LOG_MAXIMUM_LEVEL=3
