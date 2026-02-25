@@ -1,0 +1,17 @@
+menu "WS2812 LED Configuration"
+
+config LED_WS2812_GPIO
+    int "WS2812 GPIO"
+    default 48
+    range 0 48
+
+config LED_WS2812_MAX_LEDS
+    int "Number of LEDs"
+    default 1
+
+config LED_WS2812_RMT_RESOLUTION
+    int "RMT Resolution (Hz)"
+    default 10000000
+
+
+endmenu
