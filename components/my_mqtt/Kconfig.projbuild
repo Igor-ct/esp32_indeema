@@ -1,0 +1,19 @@
+menu "MQQT Configuration"
+
+    config MQTT_BROKER_URI
+        string "MQTT broker URI"
+        default "mqtt://broker.hivemq.com:1883"
+
+    config MQTT_CLIENT_ID
+        string "MQTT broker ID"
+        default "ESP32_Test" 
+
+    config MQTT_CMD_TOPIC
+        string "MQTT command topic"
+        default "esp-lection/cmd"
+
+    config MQTT_STATUS_TOPIC
+        string "MQTT status topic"
+        default "esp-lection/status"
+    
+endmenu

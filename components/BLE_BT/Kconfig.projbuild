@@ -1,0 +1,15 @@
+menu "BLE Component Configuration"
+
+    config BLE_DEVICE_NAME
+        string "BLE Device Name (Advertising)"
+        default "ESP32_Igor_BLE"
+
+    config BLE_MANUFACTURER_NAME
+        string "Manufacturer Name"
+        default "My Company"
+
+    config BLE_MODEL_NUMBER
+        string "Model Number"
+        default "ESP32 NimBLE LED"
+
+endmenu
