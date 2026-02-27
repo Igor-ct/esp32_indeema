@@ -1,0 +1,16 @@
+
+# Build artifacts and directories
+build/
+
+# ESP-IDF specific build outputs
+*.bin
+*.elf
+*.map
+sdkconfig.old
+sdkconfig
+
+# For modern ESP-IDF component manager
+managed_components/
+
+.devcontainer/
+.vscode/
