@@ -1,0 +1,17 @@
+menu "Custom UART Configuration"
+
+config UART_BAUD_RATE
+    int "UART BAUDRATE"
+    default 115200
+
+config MY_TXD_PIN
+    int "TXD PIN"
+    default 4
+    range 0 48
+
+config MY_RXD_PIN
+    int "RXD PIN"
+    default 5
+    range 0 48
+
+endmenu
