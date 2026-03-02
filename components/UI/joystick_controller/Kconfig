@@ -1,0 +1,28 @@
+menu "Joystick Configuration"
+
+config JOYSTICK_ADC_UNIT
+    int "ADC Unit (1 or 2)"
+    default 1
+    range 1 2
+
+config JOYSTICK_X_CHANNEL
+    int "Joystick X ADC Channel"
+    default 0
+
+config JOYSTICK_Y_CHANNEL
+    int "Joystick Y ADC Channel"
+    default 1
+
+config JOYSTICK_UPDATE_INTERVAL
+    int "Joystick update interval (ms)"
+    default 100
+
+config JOYSTICK_ENABLE_CIRCLE_MODE
+    bool "Enable RGB circle mode by default"
+    default y
+
+config JOYSTICK_ENABLE_WIFI_MODE
+    bool "Enable wifi mode control by default"
+    default y
+
+endmenu
