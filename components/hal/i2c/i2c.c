@@ -1,7 +1,7 @@
 #include "i2c.h"
 #include "esp_log.h"
 
-static const char *TAG = "MY_I2C";
+static const char *TAG = "I2C";
 
 #define I2C_MASTER_SDA_IO CONFIG_I2C_MASTER_SDA_IO
 #define I2C_MASTER_SCL_IO CONFIG_I2C_MASTER_SCL_IO

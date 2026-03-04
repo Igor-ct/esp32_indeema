@@ -20,13 +20,11 @@ static const char *TAG = "mqtt";
 
 static char message[64];
 static bool is_mqtt_connected = false; 
-static bool status_overriden_led = false;
 static int mqtt_target_r = 0, mqtt_target_g = 0, mqtt_target_b = 0;
 
 esp_mqtt_client_handle_t global_client = NULL; 
 QueueHandle_t mqtt_cmd_queue = NULL;
 
-static void set_status_overriden_led(bool status);
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -50,7 +48,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGW(TAG, "MQTT disconnected");
-        set_status_overriden_led(false); 
         is_mqtt_connected = false; 
         break;
         
@@ -110,6 +107,8 @@ void mqtt_app_start(void)
     global_client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(global_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(global_client);
+    xTaskCreate(task_heartbeat, "mqtt_heartbeat", 3072, NULL, 5, NULL);
+    xTaskCreate(task_cmd_manager, "mqtt_cmd_manager", 3072, NULL, 5, NULL);
 }
 
 void task_heartbeat(void *pvParameters)
@@ -140,7 +139,6 @@ void task_cmd_manager(void *pvParameters)
                 mqtt_target_r = cmd.r;
                 mqtt_target_g = cmd.g;
                 mqtt_target_b = cmd.b;
-                set_status_overriden_led(true);
                 
                 snprintf(message, sizeof(message), "led set(%d, %d, %d)", mqtt_target_r, mqtt_target_g, mqtt_target_b);
                 esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1 ); 
@@ -149,18 +147,17 @@ void task_cmd_manager(void *pvParameters)
 
             if (cmd.state == JSON_LED_STATE_OFF) {
                 mqtt_target_r = 0; mqtt_target_g = 0; mqtt_target_b = 0;
-                set_status_overriden_led(true);
+                led_send_remote_command(LED_REMOTE_OFF, mqtt_target_r, mqtt_target_g, mqtt_target_b, 3);
                 esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: off", 0, 1, 1); 
                 ESP_LOGI("CMD_TASK", "LED State: OFF");
             } 
             else if (cmd.state == JSON_LED_STATE_ON) {
-                mqtt_target_r = 255; mqtt_target_g = 255; mqtt_target_b = 255;
-                set_status_overriden_led(true);
+                led_send_remote_command(LED_REMOTE_ON, mqtt_target_r, mqtt_target_g, mqtt_target_b, 3);
                 esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: on", 0, 1, 1); 
                 ESP_LOGI("CMD_TASK", "LED State: ON");
             }
             else if (cmd.state == JSON_LED_STATE_AUTO) {
-                set_status_overriden_led(false); 
+                led_send_remote_command(LED_REMOTE_AUTO, 0, 0, 0, 3);
                 esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: auto", 0, 1, 1); 
                 ESP_LOGI("CMD_TASK", "LED State: AUTO");
             }
@@ -168,20 +165,6 @@ void task_cmd_manager(void *pvParameters)
     }
 }
 
-led_cmd_t get_mqtt_target_color(void) {
-    led_cmd_t color = { mqtt_target_r, mqtt_target_g, mqtt_target_b };
-    return color;
-}
-
-static void set_status_overriden_led(bool status)
-{
-    status_overriden_led = status;
-}
-
-bool get_status_overriden_led(void)
-{
-    return status_overriden_led;
-}
 
 esp_mqtt_client_handle_t get_mqtt_client_handle(void) {
     return global_client;
@@ -208,3 +191,4 @@ esp_err_t mqtt_publish_message(const char *topic, const char *payload)
 bool get_mqtt_connected(void) {
     return is_mqtt_connected;
 }
+

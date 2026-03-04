@@ -1,7 +1,7 @@
 #include "spi.h"
 #include "esp_log.h"
 
-static const char *TAG = "MY_SPI";
+static const char *TAG = "SPI";
 
 #define SPI_MISO_PIN CONFIG_SPI_MISO_PIN
 #define SPI_MOSI_PIN CONFIG_SPI_MOSI_PIN

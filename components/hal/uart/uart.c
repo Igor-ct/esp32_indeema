@@ -8,7 +8,7 @@
 #include "string.h"
 #include "driver/gpio.h"
 #include "json_parser.h"
-
+#include "led_service.h"
 
 static bool uart_led_override = false;
 static uint8_t uart_target_r = 0;
@@ -35,9 +35,10 @@ void uart_component_init(void)
     uart_driver_install(UART_NUM_1, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
     uart_param_config(UART_NUM_1, &uart_config);
     uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    xTaskCreate(rx_task, "uart_rx_task", 4096, NULL, 5, NULL); 
 }
 
-int sendData(const char* logName, const char* data)
+int send_data(const char* logName, const char* data)
 {
     const int len = strlen(data);
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
@@ -50,7 +51,7 @@ static void tx_task(void *arg)
     static const char *TX_TASK_TAG = "TX_TASK";
     esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
     while (1) {
-        sendData(TX_TASK_TAG, "Hello world");
+        send_data(TX_TASK_TAG, "Hello world");
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
 }
@@ -76,28 +77,21 @@ void rx_task(void *arg)
                     uart_target_r = parsed_cmd.r;
                     uart_target_g = parsed_cmd.g;
                     uart_target_b = parsed_cmd.b;
-                    uart_led_override = true;
                     
                     ESP_LOGI(RX_TASK_TAG, "UART JSON Command: Color set to %d, %d, %d", 
                              uart_target_r, uart_target_g, uart_target_b);
                 }
 
                 if (parsed_cmd.state == JSON_LED_STATE_OFF) {
-                    uart_target_r = 0; 
-                    uart_target_g = 0; 
-                    uart_target_b = 0;
-                    uart_led_override = true;
+                    led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
                     ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED OFF");
                 } 
                 else if (parsed_cmd.state == JSON_LED_STATE_ON) {
-                    uart_target_r = 255; 
-                    uart_target_g = 255; 
-                    uart_target_b = 255; 
-                    uart_led_override = true;
+                    led_send_remote_command(LED_REMOTE_ON, uart_target_r, uart_target_g, uart_target_b, 5);
                     ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED ON");
                 }
                 else if (parsed_cmd.state == JSON_LED_STATE_AUTO) {
-                    uart_led_override = false; 
+                    led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
                     ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED AUTO (Override disabled)");
                 }
                 
@@ -110,11 +104,3 @@ void rx_task(void *arg)
 }
 
 
-bool get_uart_status_overriden_led(void) {
-    return uart_led_override;
-}
-
-led_cmd_t get_uart_target_color(void) {
-    led_cmd_t color = { .r = uart_target_r, .g = uart_target_g, .b = uart_target_b };
-    return color;
-}

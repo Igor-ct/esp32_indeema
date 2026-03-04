@@ -12,7 +12,6 @@
 #include "services/gatt/ble_svc_gatt.h"
 
 #include "ble.h"         
-#include "ws2812.h"      
 #include "esp_log.h"
 
 static const char *manuf_name = CONFIG_BLE_MANUFACTURER_NAME;
@@ -213,7 +212,6 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle, s
         }
         else if (uuid == GATT_LED_CHR_INIT_UUID) {
             ble_led_hw_state = ctxt->om->om_data[0];
-            // [ОНОВЛЕНО] Мережа не торкається заліза. Ми просто логуємо зміну.
             ESP_LOGI("BLE", "Virtual HW state set to: %d (Hardware is handled by led_service)", ble_led_hw_state);
         }
         return 0;
@@ -232,7 +230,7 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle, s
     return BLE_ATT_ERR_UNLIKELY;
 }
 
-int gatt_svr_init(void)
+int ble_gatt_svr_init(void)
 {
     int rc;
     ble_svc_gap_init();
@@ -313,15 +311,6 @@ void ble_setup_stack_and_security(void)
     ble_hs_cfg.sm_their_key_dist = 1;
 }
 
-led_cmd_t get_ble_bt_target_color(void) {
-    led_cmd_t color = { ble_led_color[0], ble_led_color[1], ble_led_color[2] };
-    return color;
-}
-
-bool get_ble_status_overriden_led(void)
-{
-  return(ble_led_state);
-}
 
 static int gatt_svr_dsc_access(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {

@@ -8,6 +8,7 @@
 #include "led_service.h"         
 #include "wifi_sta.h"            
 #include "wifi_ap.h"             
+#include "sntp_sync.h"
 
 static const char *TAG = "WIFI_SERVICE";
 
@@ -58,6 +59,13 @@ static void wifi_service_task(void *pvParameters) {
 }
 
 void wifi_service_start(void) {
+
+    esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_ap();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    sntp_service_init();
+
     xTaskCreate(wifi_service_task, "wifi_service", 4096, NULL, 4, NULL);
     ESP_LOGI(TAG, "WiFi Service started");
 }

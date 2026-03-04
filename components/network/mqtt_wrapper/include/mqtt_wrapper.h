@@ -3,16 +3,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "mqtt_client.h"
-#include "ws2812.h"
-
+#include "led_service.h"
 
 esp_mqtt_client_handle_t get_mqtt_client_handle(void);
 
 void mqtt_app_start(void);
-
-bool get_status_overriden_led(void);
-
-led_cmd_t get_mqtt_target_color(void);
 
 void task_heartbeat(void *pvParameters);
 

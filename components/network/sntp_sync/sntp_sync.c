@@ -30,7 +30,7 @@ void time_sync_notification_cb(struct timeval *tv)
     ESP_LOGI(TAG, "Current local time: %s", strftime_buf);
 }
 
-void SNTP_service_init(void)
+void sntp_service_init(void)
 {
     ESP_LOGI(TAG, "Initializing SNTP Service...");
 

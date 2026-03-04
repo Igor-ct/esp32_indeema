@@ -10,8 +10,12 @@
 #include "aht20.h"
 #include "bmp280.h"
 #include "lsmd6ds3.h"
+#include "spi.h"
+#include "i2c.h"
 
-void telemetry_update_task(void *pvParameters)
+static const char *TAG = "TELEMETRY";
+
+static void telemetry_update_task(void *pvParameters)
 {
     const TickType_t delay_ticks = pdMS_TO_TICKS(5000); 
 
@@ -31,8 +35,8 @@ void telemetry_update_task(void *pvParameters)
 
         ESP_LOGI("TELEMETRY", "Generated: %s", telemetry_json);
 
-        sendData("TELEMETRY", telemetry_json);
-        sendData("TELEMETRY", "\r\n");
+        send_data("TELEMETRY", telemetry_json);
+        send_data("TELEMETRY", "\r\n");
 
         if (get_mqtt_connected()) { 
                 mqtt_publish_message("esp-lection/telemetry", telemetry_json);
@@ -40,4 +44,18 @@ void telemetry_update_task(void *pvParameters)
 
         vTaskDelay(delay_ticks);
     }
+}
+
+void telemetry_init(void)
+{
+    i2c_bus_init();
+    spi_bus_init();
+
+    if (aht20_init() == ESP_OK) ESP_LOGI(TAG, "AHT20 Initialized");
+    if (bmp280_init() == ESP_OK) ESP_LOGI(TAG, "BMP280 Initialized");
+    if (lsm6ds3_init(10) == ESP_OK) ESP_LOGI(TAG, "LSM6DS3 Initialized");
+
+    xTaskCreate(telemetry_update_task, "telemetry_task", 4096, NULL, 4, NULL);
+
+    ESP_LOGI(TAG, "Initialized");
 }

@@ -263,16 +263,17 @@ To enable task statistics (CPU usage and Stack monitoring), you must enable the 
 ```
 esp32_indeema/
 ├── CMakeLists.txt
-├── Kconfig.projbuild
 ├── sdkconfig.defaults
 ├── main/
 │   ├── main.c                  # Entry point. System initialization and service startup
-│   └── sdkconfig.defaults      # Shortcut for kconfig
+│   └── Kconfig.projbuild      # Shortcut for kconfig
 └── components/
     ├── app/                    # Application layer (business logic)
     │   ├── data_bridge/        # Data exchange between services (event routing / queues / mediator)
     │   ├── led_service/        # High-level LED logic (modes, states, effects)
     │   ├── telemetry_service/  # Telemetry aggregation and sensor data processing
+    │   ├── ble_service/        # BLE initialization and GATT server management
+    │   ├── platform_init/      # System initialization (NVS setup, hardware & UI bootstrap) 
     │   └── wifi_service/       # WiFi orchestration (manages STA/AP behavior)
     ├── drivers/                # Device drivers (hardware-specific logic)
     │   ├── aht20/              # AHT20 driver (temperature & humidity sensor)

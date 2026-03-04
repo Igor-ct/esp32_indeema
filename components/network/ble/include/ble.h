@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include "host/ble_uuid.h"
 #include "led_service.h"
-#include "ws2812.h"      
 
 #define GATT_DEVICE_INFO_UUID               0x180A
 #define GATT_MANUFACTURER_NAME_UUID         0x2A29
@@ -21,9 +20,7 @@
 
 extern uint8_t battery_level;
 
-int gatt_svr_init(void);
+int ble_gatt_svr_init(void);
 void ble_setup_stack_and_security(void);
 void ble_app_advertise(void);
-led_cmd_t get_ble_bt_target_color(void);
-bool get_ble_status_overriden_led(void);
 void ble_update_telemetry(const char *json_data);
