@@ -17,6 +17,7 @@
 #include "wifi_service.h"
 #include "telemetry_service.h"
 #include "ble_service.h"
+#include "sensor_service.h"
 
 static const char *TAG = "APP";
 
@@ -30,8 +31,11 @@ void app_main(void)
 
     led_service_start();
     wifi_service_start();
-    telemetry_init();
     ble_start();
+
+    sensor_service_init();
+
+    telemetry_start();
 
     //data_bridge_init();
     //xTaskCreate(task_system_status, "Sys_Status", 4096, NULL, 3, NULL);

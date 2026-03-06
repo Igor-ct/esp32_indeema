@@ -15,6 +15,11 @@ menu "Main Configure"
    endmenu
 
    menu "UI"
+      rsource "../components/app/sensor_service/Kconfig"
+      rsource "../components/app/telemetry_service/Kconfig"
+   endmenu
+
+   menu "APP"
       rsource "../components/UI/joystick_controller/Kconfig"
       rsource "../components/UI/joystick_button/Kconfig"
    endmenu

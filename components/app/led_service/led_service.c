@@ -53,29 +53,21 @@ static void led_service_task(void *pvParameters)
     {
         while (xQueueReceive(led_cmd_queue, &incoming_cmd, 0) == pdTRUE)
         {
-            while (xQueueReceive(led_cmd_queue, &incoming_cmd, 0) == pdTRUE) {
-                if (incoming_cmd.priority >= active_remote_cmd.priority) {
-                    active_remote_cmd = incoming_cmd;
+            if (incoming_cmd.priority >= active_remote_cmd.priority) {
+                active_remote_cmd = incoming_cmd;
 
-                    if (incoming_cmd.mode == LED_REMOTE_OFF) {
-                        active_remote_cmd.r = 0;
-                        active_remote_cmd.g = 0;
-                        active_remote_cmd.b = 0;
-                        active_remote_cmd.lock = true;
-                    }
+                if (incoming_cmd.mode == LED_REMOTE_OFF) {
+                    active_remote_cmd.r = 0;
+                    active_remote_cmd.g = 0;
+                    active_remote_cmd.b = 0;
+                    active_remote_cmd.lock = true;
+                }
 
-                    if (incoming_cmd.mode == LED_REMOTE_AUTO) {
-                        active_remote_cmd.priority = 0;
-                        active_remote_cmd.lock = false;
-                    }
+                if (incoming_cmd.mode == LED_REMOTE_AUTO) {
+                    active_remote_cmd.priority = 0;
+                    active_remote_cmd.lock = false;
                 }
             }
-        }
-
-        if (active_remote_cmd.priority > 0) {
-            ws2812_set_rgb(active_remote_cmd.r, active_remote_cmd.g, active_remote_cmd.b);
-            vTaskDelay(delay_ticks);
-            continue;
         }
 
         while (xQueueReceive(joystick_button_get_queue(), &btn_evt, 0) == pdTRUE)
@@ -84,8 +76,7 @@ static void led_service_task(void *pvParameters)
             {
                 case BTN_EVT_LONG_PRESS:
                     led_power_on = !led_power_on;
-                    if (!led_power_on)
-                        ws2812_clear();
+                    if (!led_power_on) ws2812_clear();
                     break;
 
                 case BTN_EVT_PRESS_DOWN:
@@ -112,17 +103,12 @@ static void led_service_task(void *pvParameters)
 
         uint8_t r = 0, g = 0, b = 0;
 
-        
-        r = active_remote_cmd.r;
-        g = active_remote_cmd.g;
-        b = active_remote_cmd.b;
 
-        ws2812_set_rgb(r, g, b);
-        vTaskDelay(delay_ticks);
-        continue;
-        
-
-        if (!rgb_circle_mode && wifi_mode_enable)
+        if (active_remote_cmd.priority > 0) 
+        {
+            ws2812_set_rgb(active_remote_cmd.r, active_remote_cmd.g, active_remote_cmd.b);
+        }
+        else if (!rgb_circle_mode && wifi_mode_enable)
         {
             uint32_t now = xTaskGetTickCount();
 
@@ -144,11 +130,8 @@ static void led_service_task(void *pvParameters)
             }
 
             ws2812_set_rgb(r, g, b);
-            vTaskDelay(delay_ticks);
-            continue;
         }
-
-        if (!led_locked)
+        else if (!led_locked)
         {
             if (!rgb_circle_mode)
             {
@@ -175,7 +158,6 @@ static void led_service_task(void *pvParameters)
         vTaskDelay(delay_ticks);
     }
 }
-
 void led_service_start(void) {
     led_cmd_queue = xQueueCreate(10, sizeof(led_cmd_t));
     xTaskCreate(led_service_task, "led_service", 4096, NULL, 5, NULL);

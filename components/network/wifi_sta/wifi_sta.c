@@ -85,6 +85,16 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         esp_netif_sntp_start();
         
         start_webserver();
+
+        esp_mqtt_client_handle_t mqtt_client = get_mqtt_client_handle();
+        if (mqtt_client != NULL) {
+            esp_err_t err = esp_mqtt_client_start(get_mqtt_client_handle());
+            if (err == ESP_OK) {
+                ESP_LOGI(TAG, "MQTT client restarted after Wi-Fi reconnection");
+            } else {
+                ESP_LOGW(TAG, "Failed to restart MQTT client: %d", err);
+            }
+        }
     }
 }
 

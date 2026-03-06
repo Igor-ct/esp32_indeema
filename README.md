@@ -272,8 +272,8 @@ esp32_indeema/
     │   ├── data_bridge/        # Data exchange between services (event routing / queues / mediator)
     │   ├── led_service/        # High-level LED logic (modes, states, effects)
     │   ├── telemetry_service/  # Telemetry aggregation and sensor data processing
+    │   ├── sensor_service/     # Sensor polling, data acquisition, and hardware driver orchestration
     │   ├── ble_service/        # BLE initialization and GATT server management
-    │   ├── platform_init/      # System initialization (NVS setup, hardware & UI bootstrap) 
     │   └── wifi_service/       # WiFi orchestration (manages STA/AP behavior)
     ├── drivers/                # Device drivers (hardware-specific logic)
     │   ├── aht20/              # AHT20 driver (temperature & humidity sensor)
@@ -284,6 +284,8 @@ esp32_indeema/
     │   ├── i2c/                # I2C wrapper (init, read/write, mutex, configuration)
     │   ├── spi/                # SPI wrapper
     │   └── uart/               # UART wrapper
+    ├── system/                 # Core device infrastructure (HAL, RTOS utilities, power/memory management)
+    │   └── platform_init/      # System initialization (NVS setup, hardware & UI bootstrap) 
     ├── network/                # Networking layer
     │   ├── ble/                # NimBLE GATT server and custom BLE services
     │   ├── http_server/        # Embedded HTTP configuration server

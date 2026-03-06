@@ -88,7 +88,7 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
                         .uuid = (ble_uuid_t*)&dsc_user_desc_uuid, 
                         .att_flags = BLE_ATT_F_READ,
                         .access_cb = gatt_svr_dsc_access,
-                        .arg = (void *)"LED Power State (00/01)"
+                        .arg = (void *)"LED Mode (0=OFF, 1=ON, 2=AUTO)"
                     },
                     {0}
                 }
@@ -102,28 +102,13 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
                         .uuid = (ble_uuid_t*)&dsc_user_desc_uuid, 
                         .att_flags = BLE_ATT_F_READ,
                         .access_cb = gatt_svr_dsc_access,
-                        .arg = (void *)"LED RGB Color (Hex RRGGBB)"
+                        .arg = (void *)"LED RGB Color (3 Bytes: R, G, B)"
                     },
                     {0}
                 }
             }, 
-            { 
-                .uuid = BLE_UUID16_DECLARE(GATT_LED_CHR_INIT_UUID), 
-                .access_cb = gatt_svr_chr_access_led, 
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-                .descriptors = (struct ble_gatt_dsc_def[]) {
-                    { 
-                        .uuid = (ble_uuid_t*)&dsc_user_desc_uuid, 
-                        .att_flags = BLE_ATT_F_READ, 
-                        .access_cb = gatt_svr_dsc_access, 
-                        .arg = (void *)"LED Hardware Init (00/01) [Deprecated]" 
-                    },
-                    {0}
-                }
-            },
             {0} 
         }
-        
     },
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -195,36 +180,63 @@ static int gatt_svr_chr_access_cts(uint16_t conn_handle, uint16_t attr_handle, s
     return os_mbuf_append(ctxt->om, cts_data, sizeof(cts_data)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
-static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
+                                   struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     uint16_t uuid = ble_uuid_u16(ctxt->chr->uuid);
+    const uint8_t ble_priority = 10;
 
     if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        
         if (uuid == GATT_LED_CHR_STATE_UUID) {
             ble_led_state = ctxt->om->om_data[0];
-            ESP_LOGI("BLE", "LED override state updated to: %d", ble_led_state);
-        } 
-        else if (uuid == GATT_LED_CHR_COLOR_UUID) {
+
+            if (ble_led_state == 0) { 
+                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, ble_priority);
+                ESP_LOGI("BLE", "Command: LED OFF");
+            } 
+            else if (ble_led_state == 1) {
+                led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], ble_priority);
+                ESP_LOGI("BLE", "Command: LED ON (R:%d G:%d B:%d)", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
+            }
+            else if (ble_led_state == 2) {
+                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, ble_priority);
+                ESP_LOGI("BLE", "Command: LED AUTO (Override disabled)");
+            }
+            return 0;
+        }
+
+        if (uuid == GATT_LED_CHR_COLOR_UUID) {
             if (OS_MBUF_PKTLEN(ctxt->om) == 3) {
                 memcpy(ble_led_color, ctxt->om->om_data, 3);
-                ESP_LOGI("BLE", "New color received: R%d G%d B%d", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
+                
+                if (ble_led_state == 1) {
+                    led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], ble_priority);
+                }
+                
+                ESP_LOGI("BLE", "Color updated: %d,%d,%d", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
+                return 0;
             }
+            return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
-        else if (uuid == GATT_LED_CHR_INIT_UUID) {
+
+        if (uuid == GATT_LED_CHR_INIT_UUID) {
             ble_led_hw_state = ctxt->om->om_data[0];
-            ESP_LOGI("BLE", "Virtual HW state set to: %d (Hardware is handled by led_service)", ble_led_hw_state);
+            return 0;
         }
-        return 0;
+        return BLE_ATT_ERR_UNLIKELY;
     }
 
-    if (uuid == GATT_LED_CHR_STATE_UUID) {
-        return os_mbuf_append(ctxt->om, &ble_led_state, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-    }
-    if (uuid == GATT_LED_CHR_COLOR_UUID) {
-        return os_mbuf_append(ctxt->om, ble_led_color, 3) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-    }
-    if (uuid == GATT_LED_CHR_INIT_UUID) {
-        return os_mbuf_append(ctxt->om, &ble_led_hw_state, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        if (uuid == GATT_LED_CHR_STATE_UUID) {
+            return os_mbuf_append(ctxt->om, &ble_led_state, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+        }
+        if (uuid == GATT_LED_CHR_COLOR_UUID) {
+            return os_mbuf_append(ctxt->om, ble_led_color, 3) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+        }
+        if (uuid == GATT_LED_CHR_INIT_UUID) {
+            return os_mbuf_append(ctxt->om, &ble_led_hw_state, 1) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+        }
     }
 
     return BLE_ATT_ERR_UNLIKELY;

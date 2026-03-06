@@ -12,5 +12,6 @@ set(EXTRA_COMPONENT_DIRS
     "components/UI"
     "components/sys_utils"
     "components/app"
+    "components/system"
 )
 project(esp32_indeema)

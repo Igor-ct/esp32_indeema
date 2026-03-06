@@ -3,59 +3,104 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"     
+#include "freertos/semphr.h"
 
 #include "mqtt_wrapper.h"
 #include "ble.h"
 #include "uart.h"
-#include "aht20.h"
-#include "bmp280.h"
-#include "lsmd6ds3.h"
-#include "spi.h"
-#include "i2c.h"
+#include "sensor_service.h"
+
+#define Update_env_telemetry  CONFIG_UPDATE_ENV_TELEMETRY
+#define Update_motion_telemetry CONFIG_UPDATE_MOTION_TELEMETRY_TIME
+
+static sensor_data_t g_device_state = {0};
+static SemaphoreHandle_t state_mutex = NULL;
 
 static const char *TAG = "TELEMETRY";
 
-static void telemetry_update_task(void *pvParameters)
+static void sync_and_send_ble(void)
 {
-    const TickType_t delay_ticks = pdMS_TO_TICKS(5000); 
+    if (state_mutex == NULL) return;
+
+    char full_json[200]; 
+    
+    if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
+        snprintf(full_json, sizeof(full_json),
+                 "{\"env\":{\"t\":%.2f,\"h\":%.2f,\"p\":%ld},\"acc\":[%d,%d,%d]}",
+                 g_device_state.aht20.valid ? g_device_state.aht20.temperature : 0.0,
+                 g_device_state.aht20.valid ? g_device_state.aht20.humidity : 0.0,
+                 g_device_state.bmp280.valid ? (long)g_device_state.bmp280.pressure : 0,
+                 g_device_state.accel.valid ? g_device_state.accel.x : 0,
+                 g_device_state.accel.valid ? g_device_state.accel.y : 0,
+                 g_device_state.accel.valid ? g_device_state.accel.z : 0);
+        
+        xSemaphoreGive(state_mutex); 
+    }
+
+    ble_update_telemetry(full_json);
+}
+
+static void telemetry_env_task(void *pvParameters)
+{
+    const TickType_t delay_ticks = pdMS_TO_TICKS(Update_env_telemetry);
+    sensor_data_t local_data;
 
     while (1) {
-        float temp_aht = 0.0f, hum_aht = 0.0f;
-        int32_t raw_temp = 0, raw_press = 0;
-        int16_t accel_x = 0, accel_y = 0, accel_z = 0;
+        if(sensor_service_read(&local_data)) {
+            
+            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
+                g_device_state.aht20 = local_data.aht20;
+                g_device_state.bmp280 = local_data.bmp280;
+                xSemaphoreGive(state_mutex);
+            }
 
-        aht20_read(&temp_aht, &hum_aht);
-        bmp280_read_raw(&raw_temp, &raw_press);
-        lsm6ds3_read_accel(&accel_x, &accel_y, &accel_z);
+            sync_and_send_ble();
 
-        char telemetry_json[256];
-        snprintf(telemetry_json, sizeof(telemetry_json),
-                 "{\"temp_c\":%.2f, \"hum_percent\":%.2f, \"press_raw\":%ld, \"accel\":[%d,%d,%d]}",
-                 temp_aht, hum_aht, raw_press, accel_x, accel_y, accel_z);
-
-        ESP_LOGI("TELEMETRY", "Generated: %s", telemetry_json);
-
-        send_data("TELEMETRY", telemetry_json);
-        send_data("TELEMETRY", "\r\n");
-
-        if (get_mqtt_connected()) { 
-                mqtt_publish_message("esp-lection/telemetry", telemetry_json);
-        } 
-
+            char json[128];
+            snprintf(json, sizeof(json), "{\"temp\":%.2f,\"hum\":%.2f,\"press\":%ld}",
+                     local_data.aht20.temperature, local_data.aht20.humidity, local_data.bmp280.pressure);
+            
+            send_data("ENV", json);
+            send_data("ENV", "\r\n");
+            if(get_mqtt_connected()) mqtt_publish_message("esp-lection/env", json);
+        }
         vTaskDelay(delay_ticks);
     }
 }
 
-void telemetry_init(void)
+static void telemetry_motion_task(void *pvParameters)
 {
-    i2c_bus_init();
-    spi_bus_init();
+    const TickType_t delay_ticks = pdMS_TO_TICKS(Update_motion_telemetry);
+    sensor_data_t local_data;
 
-    if (aht20_init() == ESP_OK) ESP_LOGI(TAG, "AHT20 Initialized");
-    if (bmp280_init() == ESP_OK) ESP_LOGI(TAG, "BMP280 Initialized");
-    if (lsm6ds3_init(10) == ESP_OK) ESP_LOGI(TAG, "LSM6DS3 Initialized");
+    while (1) {
+        if(sensor_service_read(&local_data)) {
+            
+            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
+                g_device_state.accel = local_data.accel;
+                xSemaphoreGive(state_mutex);
+            }
 
-    xTaskCreate(telemetry_update_task, "telemetry_task", 4096, NULL, 4, NULL);
+            sync_and_send_ble();
 
+            char json[128];
+            snprintf(json, sizeof(json), "{\"accel\":[%d,%d,%d]}",
+                     local_data.accel.x, local_data.accel.y, local_data.accel.z);
+            
+            send_data("MOTION", json);
+            send_data("MOTION", "\r\n");
+            if(get_mqtt_connected()) mqtt_publish_message("esp-lection/motion", json);
+        }
+        vTaskDelay(delay_ticks);
+    }
+}
+
+void telemetry_start(void)
+{
+    state_mutex = xSemaphoreCreateMutex();
+    
+    xTaskCreate(telemetry_env_task, "telemetry_env", 4096, NULL, 4, NULL);
+    xTaskCreate(telemetry_motion_task, "telemetry_motion", 4096, NULL, 4, NULL);
     ESP_LOGI(TAG, "Initialized");
 }
+
