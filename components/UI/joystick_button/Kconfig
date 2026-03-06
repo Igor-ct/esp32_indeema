@@ -1,0 +1,19 @@
+menu "Button Configuration"
+
+config BUTTON_GPIO
+    int "Button GPIO"
+    default 6
+
+config BUTTON_ACTIVE_LEVEL
+    int "Button Active Level (0=LOW, 1=HIGH)"
+    default 0
+    range 0 1
+
+config BUTTON_LONG_PRESS_TIME
+    int "Long Press Time (ms)"
+    default 4000
+
+config BUTTON_SHORT_PRESS_TIME
+    int "Short Press Time (ms)"
+    default 500
+endmenu
