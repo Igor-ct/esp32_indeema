@@ -13,6 +13,7 @@
 
 #include "ble.h"         
 #include "esp_log.h"
+#include "motor_service.h"
 
 static const char *manuf_name = CONFIG_BLE_MANUFACTURER_NAME;
 static const char *model_num  = CONFIG_BLE_MODEL_NUMBER;
@@ -34,6 +35,7 @@ static int gatt_svr_chr_access_device_info(uint16_t conn_handle, uint16_t attr_h
 static int gatt_svr_chr_access_battery(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_access_cts(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_access_motor_raw(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static char ble_telemetry_json[256] = "{}"; 
 static uint16_t telemetry_conn_handle = BLE_HS_CONN_HANDLE_NONE; 
@@ -46,6 +48,14 @@ static const ble_uuid128_t gatt_svr_svc_telemetry_uuid =
 static const ble_uuid128_t gatt_svr_chr_telemetry_uuid =
     BLE_UUID128_INIT(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 
                      0x99, 0xaa, 0xbb, 0xcc, 0x01, 0x00, 0x00, 0x00);
+
+static const ble_uuid128_t gatt_svr_svc_motor_uuid =
+    BLE_UUID128_INIT(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 
+                     0x99, 0xaa, 0xbb, 0xcc, 0x02, 0x00, 0x00, 0x00);
+
+static const ble_uuid128_t gatt_svr_chr_motor_cmd_uuid =
+    BLE_UUID128_INIT(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 
+                     0x99, 0xaa, 0xbb, 0xcc, 0x03, 0x00, 0x00, 0x00);
 
 static int gatt_svr_chr_access_telemetry(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
@@ -125,6 +135,27 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
                         .att_flags = BLE_ATT_F_READ,
                         .access_cb = gatt_svr_dsc_access,
                         .arg = (void *)"Sensor Telemetry (JSON)"
+                    },
+                    {0}
+                }
+            }, 
+            {0} 
+        }
+    },
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = (ble_uuid_t*)&gatt_svr_svc_motor_uuid,
+        .characteristics = (struct ble_gatt_chr_def[]) { 
+            { 
+                .uuid = (ble_uuid_t*)&gatt_svr_chr_motor_cmd_uuid, 
+                .access_cb = gatt_svr_chr_access_motor_raw, 
+                .flags = BLE_GATT_CHR_F_WRITE,
+                .descriptors = (struct ble_gatt_dsc_def[]) {
+                    {
+                        .uuid = (ble_uuid_t*)&dsc_user_desc_uuid, 
+                        .att_flags = BLE_ATT_F_READ,
+                        .access_cb = gatt_svr_dsc_access,
+                        .arg = (void *)"Motor Control (B0: Mode, B1-4: Float Angle)"
                     },
                     {0}
                 }
@@ -354,4 +385,34 @@ void ble_update_telemetry(const char *json_data)
             ESP_LOGD("BLE", "Telemetry notification sent");
         }
     }
+}
+
+
+
+static int gatt_svr_chr_access_motor_raw(uint16_t conn_handle, uint16_t attr_handle, 
+                                         struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
+        
+        if (len < 5) {
+            ESP_LOGE("BLE", "Invalid data length: %d", len);
+            return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        }
+
+        uint8_t raw_data[5];
+        ble_hs_mbuf_to_flat(ctxt->om, raw_data, 5, &len);
+
+        motor_mode_t mode = (motor_mode_t)raw_data[0];
+        motor_service_set_mode(mode);
+
+        float angle;
+        memcpy(&angle, &raw_data[1], sizeof(float));
+
+        motor_service_set_angle(angle);
+
+        ESP_LOGI("BLE", "Raw Command: Mode %d, Angle %.1f", mode, angle);
+        return 0;
+    }
+    return BLE_ATT_ERR_UNLIKELY;
 }

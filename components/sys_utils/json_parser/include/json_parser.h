@@ -21,5 +21,13 @@ typedef struct {
     json_led_state_t state; 
 } parsed_led_cmd_t;
 
+typedef struct {
+    float angle;
+    int mode;       
+    bool has_angle;
+    bool has_mode;
+} parsed_motor_cmd_t;
+
+esp_err_t json_parse_motor_command(const char *json_string, parsed_motor_cmd_t *out_cmd);
 
 esp_err_t json_parse_led_command(const char *json_string, parsed_led_cmd_t *out_cmd);

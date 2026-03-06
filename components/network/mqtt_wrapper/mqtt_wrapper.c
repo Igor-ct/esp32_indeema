@@ -10,6 +10,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "motor_service.h"
 
 #define my_address_uri    CONFIG_MQTT_BROKER_URI
 #define MQTT_CLIENT_ID    CONFIG_MQTT_CLIENT_ID
@@ -70,6 +71,18 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             }
         } else {
             ESP_LOGE(TAG, "Failed to parse JSON or invalid command format.");
+        }
+
+        parsed_motor_cmd_t motor_cmd;
+        if (json_parse_motor_command(json_string, &motor_cmd) == ESP_OK) {
+            if (motor_cmd.has_mode) {
+                motor_service_set_mode((motor_mode_t)motor_cmd.mode);
+               }
+            if (motor_cmd.has_angle) {
+                motor_service_set_angle(motor_cmd.angle);
+            }
+        } else {
+           ESP_LOGD(TAG, "JSON string did not contain motor commands.");
         }
 
         free(json_string); 

@@ -9,6 +9,7 @@
 #include "driver/gpio.h"
 #include "json_parser.h"
 #include "led_service.h"
+#include "motor_service.h"
 
 static bool uart_led_override = false;
 static uint8_t uart_target_r = 0;
@@ -69,38 +70,46 @@ void rx_task(void *arg)
             data[rxBytes] = 0; 
             ESP_LOGI(RX_TASK_TAG, "Received JSON: '%s'", data);
 
-            parsed_led_cmd_t parsed_cmd;
-            
-            if (json_parse_led_command((const char*)data, &parsed_cmd) == ESP_OK) {
-                
-                if (parsed_cmd.has_color) {
-                    uart_target_r = parsed_cmd.r;
-                    uart_target_g = parsed_cmd.g;
-                    uart_target_b = parsed_cmd.b;
-                    
-                    ESP_LOGI(RX_TASK_TAG, "UART JSON Command: Color set to %d, %d, %d", 
-                             uart_target_r, uart_target_g, uart_target_b);
+            parsed_led_cmd_t led_cmd;
+            bool is_led_cmd = (json_parse_led_command((const char*)data, &led_cmd) == ESP_OK);
+
+            if (is_led_cmd) {
+                if (led_cmd.has_color) {
+                    uart_target_r = led_cmd.r;
+                    uart_target_g = led_cmd.g;
+                    uart_target_b = led_cmd.b;
+                    ESP_LOGI(RX_TASK_TAG, "UART: Color set to %d,%d,%d", uart_target_r, uart_target_g, uart_target_b);
                 }
 
-                if (parsed_cmd.state == JSON_LED_STATE_OFF) {
+                if (led_cmd.state == JSON_LED_STATE_OFF) {
                     led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
-                    ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED OFF");
-                } 
-                else if (parsed_cmd.state == JSON_LED_STATE_ON) {
+                } else if (led_cmd.state == JSON_LED_STATE_ON) {
                     led_send_remote_command(LED_REMOTE_ON, uart_target_r, uart_target_g, uart_target_b, 5);
-                    ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED ON");
-                }
-                else if (parsed_cmd.state == JSON_LED_STATE_AUTO) {
+                } else if (led_cmd.state == JSON_LED_STATE_AUTO) {
                     led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
-                    ESP_LOGI(RX_TASK_TAG, "UART JSON Command: LED AUTO (Override disabled)");
                 }
-                
-            } else {
-                ESP_LOGW(RX_TASK_TAG, "Failed to parse JSON string or invalid format");
+            }
+
+            parsed_motor_cmd_t motor_cmd;
+            bool is_motor_cmd = (json_parse_motor_command((const char*)data, &motor_cmd) == ESP_OK);
+
+            if (is_motor_cmd) {
+                if (motor_cmd.has_mode) {
+                    motor_service_set_mode((motor_mode_t)motor_cmd.mode);
+                    ESP_LOGI(RX_TASK_TAG, "UART: Motor Mode %d", motor_cmd.mode);
+                }
+                if (motor_cmd.has_angle) {
+                    motor_service_set_angle(motor_cmd.angle);
+                    ESP_LOGI(RX_TASK_TAG, "UART: Motor Angle %.1f", motor_cmd.angle);
+                }
+            }
+
+            if (!is_led_cmd && !is_motor_cmd) {
+                ESP_LOGW(RX_TASK_TAG, "Failed to parse JSON string or unknown command");
             }
         }
     }
-    free(data);
+    free(data); 
 }
 
 

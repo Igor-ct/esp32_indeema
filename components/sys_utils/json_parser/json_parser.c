@@ -48,3 +48,38 @@ esp_err_t json_parse_led_command(const char *json_string, parsed_led_cmd_t *out_
     cJSON_Delete(root); 
     return ESP_OK;
 }
+
+esp_err_t json_parse_motor_command(const char *json_string, parsed_motor_cmd_t *out_cmd) {
+    if (json_string == NULL || out_cmd == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    out_cmd->has_angle = false;
+    out_cmd->has_mode = false;
+    out_cmd->angle = 0.0f;
+    out_cmd->mode = 0;
+
+    cJSON *root = cJSON_Parse(json_string);
+    if (root == NULL) {
+        return ESP_FAIL;
+    }
+
+    cJSON *motor = cJSON_GetObjectItem(root, "motor");
+    if (cJSON_IsObject(motor)) {
+        
+        cJSON *angle = cJSON_GetObjectItem(motor, "angle");
+        if (cJSON_IsNumber(angle)) {
+            out_cmd->angle = (float)angle->valuedouble;
+            out_cmd->has_angle = true;
+        }
+
+        cJSON *mode = cJSON_GetObjectItem(motor, "mode");
+        if (cJSON_IsNumber(mode)) {
+            out_cmd->mode = mode->valueint;
+            out_cmd->has_mode = true;
+        }
+    }
+
+    cJSON_Delete(root);
+    return ESP_OK;
+}
