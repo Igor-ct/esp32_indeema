@@ -1,0 +1,18 @@
+menu "Custom SPI Configuration"
+
+config SPI_MISO_PIN
+    int "SPI MISO PIN"
+    default 13
+    range 0 48
+
+config SPI_MOSI_PIN
+    int "SPI MOSI PIN"
+    default 11
+    range 0 48
+
+config SPI_SCLK_PIN
+    int "SPI SCLK PIN"
+    default 12
+    range 0 48
+
+endmenu

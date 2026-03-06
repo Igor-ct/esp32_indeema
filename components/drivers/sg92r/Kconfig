@@ -1,0 +1,9 @@
+menu "Servo Motor (SG92R) Configuration"
+
+    config SG92R_PWM_PIN
+        int "PWM GPIO Pin"
+        default 21
+        help
+            GPIO pin connected to the PWM signal wire of the SG92R servo.
+
+endmenu

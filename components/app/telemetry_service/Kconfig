@@ -1,0 +1,15 @@
+menu "Telemetry Service Configuration"
+
+config UPDATE_ENV_TELEMETRY
+    int "Environment telemetry update interval (ms)"
+    default 5000
+    help
+      Interval in milliseconds for updating temperature, humidity, and pressure telemetry.
+
+config UPDATE_MOTION_TELEMETRY_TIME
+    int "Motion telemetry update interval (ms)"
+    default 200
+    help
+      Interval in milliseconds for updating accelerometer telemetry.
+
+endmenu

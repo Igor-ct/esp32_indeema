@@ -1,0 +1,34 @@
+menu "Main Configure"
+
+    menu "Network"
+      rsource "../components/network/ble/Kconfig"
+      rsource "../components/network/wifi_ap/Kconfig"
+      rsource "../components/network/wifi_sta/Kconfig"
+      rsource "../components/network/sntp_sync/Kconfig"
+      rsource "../components/network/mqtt_wrapper/Kconfig"
+   endmenu
+
+   menu "HAL"
+      rsource "../components/hal/i2c/Kconfig"
+      rsource "../components/hal/spi/Kconfig"
+      rsource "../components/hal/uart/Kconfig"
+   endmenu
+
+   menu "UI"
+      rsource "../components/app/sensor_service/Kconfig"
+      rsource "../components/app/telemetry_service/Kconfig"
+   endmenu
+
+   menu "APP"
+      rsource "../components/UI/joystick_controller/Kconfig"
+      rsource "../components/UI/joystick_button/Kconfig"
+   endmenu
+
+   menu "Drivers"
+      rsource "../components/drivers/ws2812/Kconfig"
+      rsource "../components/drivers/sg92r/Kconfig"
+      rsource "../components/drivers/stepper_28byj48/Kconfig"
+            
+   endmenu
+
+endmenu
