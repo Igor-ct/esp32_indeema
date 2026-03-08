@@ -11,11 +11,13 @@
 #include "led_service.h"
 #include "motor_service.h"
 
-static bool uart_led_override = false;
+static int priority = 5;
+
 static uint8_t uart_target_r = 0;
 static uint8_t uart_target_g = 0;
 static uint8_t uart_target_b = 0;
 
+static float uart_target_angle = 0.0f;
 
 static const int RX_BUF_SIZE = 1024;
 
@@ -43,7 +45,7 @@ int send_data(const char* logName, const char* data)
 {
     const int len = strlen(data);
     const int txBytes = uart_write_bytes(UART_NUM_1, data, len);
-    ESP_LOGI(logName, "Wrote %d bytes", txBytes);
+    // ESP_LOGI(logName, "Wrote %d bytes", txBytes);
     return txBytes;
 }
 
@@ -61,55 +63,84 @@ void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
+    
+    uint8_t* rx_data = (uint8_t*) malloc(RX_BUF_SIZE);
+    
+    char line_buf[256]; 
+    int line_idx = 0;
     
     while (1) {
-        const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(UART_NUM_1, rx_data, RX_BUF_SIZE, 50 / portTICK_PERIOD_MS);
         
         if (rxBytes > 0) {
-            data[rxBytes] = 0; 
-            ESP_LOGI(RX_TASK_TAG, "Received JSON: '%s'", data);
+            for (int i = 0; i < rxBytes; i++) {
+                char c = (char)rx_data[i];
 
-            parsed_led_cmd_t led_cmd;
-            bool is_led_cmd = (json_parse_led_command((const char*)data, &led_cmd) == ESP_OK);
+                if (c == '\n') {
+                    line_buf[line_idx] = '\0'; 
+                    
+                    if (line_idx > 0 && line_buf[line_idx - 1] == '\r') {
+                        line_buf[line_idx - 1] = '\0';
+                    }
 
-            if (is_led_cmd) {
-                if (led_cmd.has_color) {
-                    uart_target_r = led_cmd.r;
-                    uart_target_g = led_cmd.g;
-                    uart_target_b = led_cmd.b;
-                    ESP_LOGI(RX_TASK_TAG, "UART: Color set to %d,%d,%d", uart_target_r, uart_target_g, uart_target_b);
+                    if (strlen(line_buf) > 0) {
+                        //ESP_LOGI(RX_TASK_TAG, "Received complete JSON: '%s'", line_buf);
+
+                        parsed_led_cmd_t led_cmd;
+                        bool is_led_cmd = (json_parse_led_command(line_buf, &led_cmd) == ESP_OK);
+
+                        if (is_led_cmd) {
+                            if (led_cmd.has_color) {
+                                uart_target_r = led_cmd.r;
+                                uart_target_g = led_cmd.g;
+                                uart_target_b = led_cmd.b;
+                                ESP_LOGI(RX_TASK_TAG, "UART: Color set to %d,%d,%d", uart_target_r, uart_target_g, uart_target_b);
+                            }
+
+                            if (led_cmd.state == JSON_LED_STATE_OFF) {
+                                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
+                            } else if (led_cmd.state == JSON_LED_STATE_ON) {
+                                led_send_remote_command(LED_REMOTE_ON, uart_target_r, uart_target_g, uart_target_b, priority);
+                            } else if (led_cmd.state == JSON_LED_STATE_AUTO) {
+                                led_send_remote_command(LED_REMOTE_AUTO, 0, 0, 0, priority); 
+                            }
+                        }
+
+                        parsed_motor_cmd_t motor_cmd;
+                        bool is_motor_cmd = (json_parse_motor_command(line_buf, &motor_cmd) == ESP_OK);
+
+                        if (is_motor_cmd) {
+                            
+                            if (motor_cmd.has_angle) {
+                                uart_target_angle = motor_cmd.angle;
+                                ESP_LOGI(RX_TASK_TAG, "UART: Motor Angle %.1f", uart_target_angle);
+                            }
+
+                            if (motor_cmd.has_mode) {
+                                motor_send_remote_command((motor_mode_t)motor_cmd.mode, uart_target_angle, priority);
+                                ESP_LOGI(RX_TASK_TAG, "UART: Motor Mode %d", motor_cmd.mode);
+                            }
+                        }
+
+                        if (!is_led_cmd && !is_motor_cmd) {
+                            ESP_LOGD(RX_TASK_TAG, "Not a command or failed to parse: %s", line_buf);
+                        }
+                    }
+
+                    line_idx = 0; 
+
+                } else {
+                    if (line_idx < sizeof(line_buf) - 1) {
+                        line_buf[line_idx++] = c;
+                    } else {
+                        ESP_LOGW(RX_TASK_TAG, "Line too long, dropping buffer");
+                        line_idx = 0; 
+                    }
                 }
-
-                if (led_cmd.state == JSON_LED_STATE_OFF) {
-                    led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
-                } else if (led_cmd.state == JSON_LED_STATE_ON) {
-                    led_send_remote_command(LED_REMOTE_ON, uart_target_r, uart_target_g, uart_target_b, 5);
-                } else if (led_cmd.state == JSON_LED_STATE_AUTO) {
-                    led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, 5);
-                }
-            }
-
-            parsed_motor_cmd_t motor_cmd;
-            bool is_motor_cmd = (json_parse_motor_command((const char*)data, &motor_cmd) == ESP_OK);
-
-            if (is_motor_cmd) {
-                if (motor_cmd.has_mode) {
-                    motor_service_set_mode((motor_mode_t)motor_cmd.mode);
-                    ESP_LOGI(RX_TASK_TAG, "UART: Motor Mode %d", motor_cmd.mode);
-                }
-                if (motor_cmd.has_angle) {
-                    motor_service_set_angle(motor_cmd.angle);
-                    ESP_LOGI(RX_TASK_TAG, "UART: Motor Angle %.1f", motor_cmd.angle);
-                }
-            }
-
-            if (!is_led_cmd && !is_motor_cmd) {
-                ESP_LOGW(RX_TASK_TAG, "Failed to parse JSON string or unknown command");
-            }
-        }
-    }
-    free(data); 
+            } 
+        } 
+    } 
+    free(rx_data); 
 }
 
 

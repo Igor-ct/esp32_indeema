@@ -17,11 +17,21 @@
 #define MQTT_CMD_TOPIC    CONFIG_MQTT_CMD_TOPIC
 #define MQTT_STATUS_TOPIC CONFIG_MQTT_STATUS_TOPIC
 
+static int priority = 3;
+
 static const char *TAG = "mqtt";
 
 static char message[64];
 static bool is_mqtt_connected = false; 
 static int mqtt_target_r = 0, mqtt_target_g = 0, mqtt_target_b = 0;
+static float mqtt_target_angle = 0.0f;
+
+typedef enum { CMD_TYPE_LED, CMD_TYPE_MOTOR } cmd_type_t;
+typedef struct {
+    cmd_type_t type;
+    parsed_led_cmd_t led;
+    parsed_motor_cmd_t motor;
+} mqtt_full_cmd_t;
 
 esp_mqtt_client_handle_t global_client = NULL; 
 QueueHandle_t mqtt_cmd_queue = NULL;
@@ -63,26 +73,20 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             break;
         }
 
-        parsed_led_cmd_t parsed_cmd;
-        
-        if (json_parse_led_command(json_string, &parsed_cmd) == ESP_OK) {
+        mqtt_full_cmd_t cmd_led = {0}; 
+        if (json_parse_led_command(json_string, &cmd_led.led) == ESP_OK) {
+            cmd_led.type = CMD_TYPE_LED;
             if (mqtt_cmd_queue != NULL) {
-                xQueueSend(mqtt_cmd_queue, &parsed_cmd, 0);
+                xQueueSend(mqtt_cmd_queue, &cmd_led, 0);
             }
-        } else {
-            ESP_LOGE(TAG, "Failed to parse JSON or invalid command format.");
-        }
+        } 
 
-        parsed_motor_cmd_t motor_cmd;
-        if (json_parse_motor_command(json_string, &motor_cmd) == ESP_OK) {
-            if (motor_cmd.has_mode) {
-                motor_service_set_mode((motor_mode_t)motor_cmd.mode);
-               }
-            if (motor_cmd.has_angle) {
-                motor_service_set_angle(motor_cmd.angle);
+        mqtt_full_cmd_t cmd_motor = {0}; 
+        if (json_parse_motor_command(json_string, &cmd_motor.motor) == ESP_OK) {
+            cmd_motor.type = CMD_TYPE_MOTOR;
+            if (mqtt_cmd_queue != NULL) {
+                xQueueSend(mqtt_cmd_queue, &cmd_motor, 0);
             }
-        } else {
-           ESP_LOGD(TAG, "JSON string did not contain motor commands.");
         }
 
         free(json_string); 
@@ -97,7 +101,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 void mqtt_app_start(void)
 {
     if (mqtt_cmd_queue == NULL) {
-        mqtt_cmd_queue = xQueueCreate(10, sizeof(parsed_led_cmd_t));
+        mqtt_cmd_queue = xQueueCreate(10, sizeof(mqtt_full_cmd_t));
     }
 
     const esp_mqtt_client_config_t mqtt_cfg = {
@@ -139,40 +143,65 @@ void task_heartbeat(void *pvParameters)
 
 void task_cmd_manager(void *pvParameters)
 {
-    parsed_led_cmd_t cmd;
+    mqtt_full_cmd_t cmd; 
     
     while (1) {
         if (mqtt_cmd_queue == NULL) {
             vTaskDelay(pdMS_TO_TICKS(1000));
             continue; 
         }
-        if (mqtt_cmd_queue != NULL && xQueueReceive(mqtt_cmd_queue, &cmd, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(mqtt_cmd_queue, &cmd, portMAX_DELAY) == pdTRUE) {
             
-            if (cmd.has_color) {
-                mqtt_target_r = cmd.r;
-                mqtt_target_g = cmd.g;
-                mqtt_target_b = cmd.b;
-                
-                snprintf(message, sizeof(message), "led set(%d, %d, %d)", mqtt_target_r, mqtt_target_g, mqtt_target_b);
-                esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1 ); 
-                ESP_LOGI("CMD_TASK", "Color applied: %d, %d, %d", cmd.r, cmd.g, cmd.b);
+            if (cmd.type == CMD_TYPE_LED) {
+                if (cmd.led.has_color) {
+                    mqtt_target_r = cmd.led.r;
+                    mqtt_target_g = cmd.led.g;
+                    mqtt_target_b = cmd.led.b;
+                    
+                    snprintf(message, sizeof(message), "led set(%d, %d, %d)", mqtt_target_r, mqtt_target_g, mqtt_target_b);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1); 
+                    ESP_LOGI("CMD_TASK", "Color applied: %d, %d, %d", cmd.led.r, cmd.led.g, cmd.led.b);
+                }
+
+                if (cmd.led.state == JSON_LED_STATE_OFF) {
+                    mqtt_target_r = 0; mqtt_target_g = 0; mqtt_target_b = 0;
+                    led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: off", 0, 1, 1); 
+                } 
+                else if (cmd.led.state == JSON_LED_STATE_ON) {
+                    led_send_remote_command(LED_REMOTE_ON, mqtt_target_r, mqtt_target_g, mqtt_target_b, priority);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: on", 0, 1, 1); 
+                }
+                else if (cmd.led.state == JSON_LED_STATE_AUTO) {
+                    led_send_remote_command(LED_REMOTE_AUTO, 0, 0, 0, priority);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: auto", 0, 1, 1); 
+                }
             }
 
-            if (cmd.state == JSON_LED_STATE_OFF) {
-                mqtt_target_r = 0; mqtt_target_g = 0; mqtt_target_b = 0;
-                led_send_remote_command(LED_REMOTE_OFF, mqtt_target_r, mqtt_target_g, mqtt_target_b, 3);
-                esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: off", 0, 1, 1); 
-                ESP_LOGI("CMD_TASK", "LED State: OFF");
-            } 
-            else if (cmd.state == JSON_LED_STATE_ON) {
-                led_send_remote_command(LED_REMOTE_ON, mqtt_target_r, mqtt_target_g, mqtt_target_b, 3);
-                esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: on", 0, 1, 1); 
-                ESP_LOGI("CMD_TASK", "LED State: ON");
-            }
-            else if (cmd.state == JSON_LED_STATE_AUTO) {
-                led_send_remote_command(LED_REMOTE_AUTO, 0, 0, 0, 3);
-                esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, "led: auto", 0, 1, 1); 
-                ESP_LOGI("CMD_TASK", "LED State: AUTO");
+            if (cmd.type == CMD_TYPE_MOTOR) {
+                const char* mode_names[] = {"remote", "joystick", "accel"};
+                
+                if (cmd.motor.has_angle) {
+                    mqtt_target_angle = cmd.motor.angle;
+                    
+                    if (!cmd.motor.has_mode) {
+                        motor_send_remote_command(MOTOR_MODE_REMOTE, mqtt_target_angle, priority);
+                    }
+
+                    ESP_LOGI("CMD_TASK", "Motor angle set: %.1f", mqtt_target_angle);
+                    snprintf(message, sizeof(message), "motor: angle %.1f", mqtt_target_angle);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1);
+                }
+
+                if (cmd.motor.has_mode) {
+                    motor_send_remote_command((motor_mode_t)cmd.motor.mode, mqtt_target_angle, priority); 
+                    
+                    const char* m_name = (cmd.motor.mode >= 0 && cmd.motor.mode <= 2) ? mode_names[cmd.motor.mode] : "unknown";
+                    
+                    ESP_LOGI("CMD_TASK", "Motor mode set: %s (%d)", m_name, cmd.motor.mode);
+                    snprintf(message, sizeof(message), "motor: mode %s", m_name);
+                    esp_mqtt_client_publish(global_client, MQTT_STATUS_TOPIC, message, 0, 1, 1);
+                }
             }
         }
     }

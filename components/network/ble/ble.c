@@ -24,6 +24,8 @@ uint8_t battery_level = 85;
 static uint8_t ble_led_state = 0;
 static uint8_t ble_led_color[3] = {255, 255, 255};
 static uint8_t ble_led_hw_state = 1;
+static int priority = 4;
+
 
 static const ble_uuid128_t gatt_svr_svc_led_uuid =
     BLE_UUID128_INIT(0x00, 0x00, 0x23, 0x23, 0x12, 0x12, 0xef, 0xde, 
@@ -215,7 +217,6 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
                                    struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     uint16_t uuid = ble_uuid_u16(ctxt->chr->uuid);
-    const uint8_t ble_priority = 10;
 
     if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
         
@@ -223,15 +224,15 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
             ble_led_state = ctxt->om->om_data[0];
 
             if (ble_led_state == 0) { 
-                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, ble_priority);
+                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
                 ESP_LOGI("BLE", "Command: LED OFF");
             } 
             else if (ble_led_state == 1) {
-                led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], ble_priority);
+                led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], priority);
                 ESP_LOGI("BLE", "Command: LED ON (R:%d G:%d B:%d)", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
             }
             else if (ble_led_state == 2) {
-                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, ble_priority);
+                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
                 ESP_LOGI("BLE", "Command: LED AUTO (Override disabled)");
             }
             return 0;
@@ -242,7 +243,7 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
                 memcpy(ble_led_color, ctxt->om->om_data, 3);
                 
                 if (ble_led_state == 1) {
-                    led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], ble_priority);
+                    led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], priority);
                 }
                 
                 ESP_LOGI("BLE", "Color updated: %d,%d,%d", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
@@ -404,12 +405,11 @@ static int gatt_svr_chr_access_motor_raw(uint16_t conn_handle, uint16_t attr_han
         ble_hs_mbuf_to_flat(ctxt->om, raw_data, 5, &len);
 
         motor_mode_t mode = (motor_mode_t)raw_data[0];
-        motor_service_set_mode(mode);
 
         float angle;
         memcpy(&angle, &raw_data[1], sizeof(float));
 
-        motor_service_set_angle(angle);
+        motor_send_remote_command(mode, angle, priority);
 
         ESP_LOGI("BLE", "Raw Command: Mode %d, Angle %.1f", mode, angle);
         return 0;

@@ -16,6 +16,7 @@
 
 static sensor_data_t g_device_state = {0};
 static SemaphoreHandle_t state_mutex = NULL;
+static SemaphoreHandle_t sensor_mutex = NULL; 
 
 static const char *TAG = "TELEMETRY";
 
@@ -47,7 +48,14 @@ static void telemetry_env_task(void *pvParameters)
     sensor_data_t local_data;
 
     while (1) {
-        if(sensor_service_read(&local_data)) {
+        bool read_success = false;
+
+        if (xSemaphoreTake(sensor_mutex, portMAX_DELAY) == pdTRUE) {
+            read_success = sensor_service_read(&local_data);
+            xSemaphoreGive(sensor_mutex);
+        }
+
+        if(read_success) {
             
             if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
                 g_device_state.aht20 = local_data.aht20;
@@ -75,7 +83,14 @@ static void telemetry_motion_task(void *pvParameters)
     sensor_data_t local_data;
 
     while (1) {
-        if(sensor_service_read(&local_data)) {
+        bool read_success = false;
+
+        if (xSemaphoreTake(sensor_mutex, portMAX_DELAY) == pdTRUE) {
+            read_success = sensor_service_read(&local_data);
+            xSemaphoreGive(sensor_mutex);
+        }
+
+        if(read_success) {
             
             if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
                 g_device_state.accel = local_data.accel;
@@ -100,9 +115,9 @@ static void telemetry_motion_task(void *pvParameters)
 void telemetry_start(void)
 {
     state_mutex = xSemaphoreCreateMutex();
+    sensor_mutex = xSemaphoreCreateMutex(); 
     
     xTaskCreate(telemetry_env_task, "telemetry_env", 4096, NULL, 4, NULL);
     xTaskCreate(telemetry_motion_task, "telemetry_motion", 4096, NULL, 4, NULL);
     ESP_LOGI(TAG, "Initialized");
 }
-

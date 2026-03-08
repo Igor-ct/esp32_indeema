@@ -14,21 +14,20 @@ menu "Main Configure"
       rsource "../components/hal/uart/Kconfig"
    endmenu
 
-   menu "UI"
+   menu "APP"
       rsource "../components/app/sensor_service/Kconfig"
       rsource "../components/app/telemetry_service/Kconfig"
    endmenu
 
-   menu "APP"
-      rsource "../components/UI/joystick_controller/Kconfig"
-      rsource "../components/UI/joystick_button/Kconfig"
+   menu "UI"
+      rsource "../components/ui/joystick_controller/Kconfig"
+      rsource "../components/ui/joystick_button/Kconfig"
    endmenu
 
    menu "Drivers"
       rsource "../components/drivers/ws2812/Kconfig"
       rsource "../components/drivers/sg92r/Kconfig"
       rsource "../components/drivers/stepper_28byj48/Kconfig"
-            
    endmenu
 
 endmenu

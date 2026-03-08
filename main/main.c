@@ -38,7 +38,7 @@ void app_main(void)
 
     sensor_service_init();
 
-    //telemetry_start();
+    telemetry_start();
 
     motor_service_init();
     //data_bridge_init();

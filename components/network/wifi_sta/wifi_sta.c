@@ -82,19 +82,14 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
          
         ESP_LOGI(TAG, "Starting SNTP synchronization...");
-        esp_netif_sntp_start();
-        
-        start_webserver();
-
-        esp_mqtt_client_handle_t mqtt_client = get_mqtt_client_handle();
-        if (mqtt_client != NULL) {
-            esp_err_t err = esp_mqtt_client_start(get_mqtt_client_handle());
-            if (err == ESP_OK) {
-                ESP_LOGI(TAG, "MQTT client restarted after Wi-Fi reconnection");
-            } else {
-                ESP_LOGW(TAG, "Failed to restart MQTT client: %d", err);
-            }
+        static bool is_services_started = false;
+        if (!is_services_started) {
+            ESP_LOGI(TAG, "Starting SNTP synchronization...");
+            esp_netif_sntp_start();
+            start_webserver();
+            is_services_started = true;
         }
+
     }
 }
 
@@ -167,8 +162,8 @@ esp_err_t wifi_init_sta(void)
 
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s", wifi_config.sta.ssid);
-        led_service_set_wifi_state(WIFI_LED_ONLINE); 
-        mqtt_app_start();
+        led_service_set_wifi_state(WIFI_LED_ONLINE);
+        mqtt_app_start(); 
         return ESP_OK;
     } else {
         ESP_LOGE(TAG, "Failed to connect to SSID:%s", wifi_config.sta.ssid);

@@ -57,7 +57,7 @@ esp_err_t json_parse_motor_command(const char *json_string, parsed_motor_cmd_t *
     out_cmd->has_angle = false;
     out_cmd->has_mode = false;
     out_cmd->angle = 0.0f;
-    out_cmd->mode = 0;
+    out_cmd->mode = 0; 
 
     cJSON *root = cJSON_Parse(json_string);
     if (root == NULL) {
@@ -74,9 +74,18 @@ esp_err_t json_parse_motor_command(const char *json_string, parsed_motor_cmd_t *
         }
 
         cJSON *mode = cJSON_GetObjectItem(motor, "mode");
-        if (cJSON_IsNumber(mode)) {
-            out_cmd->mode = mode->valueint;
+        if (cJSON_IsString(mode) && (mode->valuestring != NULL)) {
             out_cmd->has_mode = true;
+            
+            if (strcmp(mode->valuestring, "remote") == 0) {
+                out_cmd->mode = 0; 
+            } else if (strcmp(mode->valuestring, "joystick") == 0) {
+                out_cmd->mode = 1;
+            } else if (strcmp(mode->valuestring, "accel") == 0) {
+                out_cmd->mode = 2; 
+            } else {
+                out_cmd->has_mode = false;
+            }
         }
     }
 
