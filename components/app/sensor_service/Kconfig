@@ -1,0 +1,15 @@
+menu "Sensor Service Configuration"
+
+config SENSOR_ENABLE_AHT20
+    bool "Enable AHT20 sensor"
+    default y
+
+config SENSOR_ENABLE_BMP280
+    bool "Enable BMP280 sensor"
+    default y
+
+config SENSOR_ENABLE_LSM6DS3
+    bool "Enable LSM6DS3 sensor"
+    default y
+
+endmenu
