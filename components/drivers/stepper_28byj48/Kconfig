@@ -1,0 +1,27 @@
+menu "Stepper Motor (28BYJ-48) Configuration"
+
+    config STEPPER_IN1_PIN
+        int "IN1 GPIO Pin"
+        default 15
+        help
+            GPIO pin connected to IN1 of the ULN2003 driver.
+
+    config STEPPER_IN2_PIN
+        int "IN2 GPIO Pin"
+        default 16
+        help
+            GPIO pin connected to IN2 of the ULN2003 driver.
+
+    config STEPPER_IN3_PIN
+        int "IN3 GPIO Pin"
+        default 17
+        help
+            GPIO pin connected to IN3 of the ULN2003 driver.
+
+    config STEPPER_IN4_PIN
+        int "IN4 GPIO Pin"
+        default 18
+        help
+            GPIO pin connected to IN4 of the ULN2003 driver.
+
+endmenu
