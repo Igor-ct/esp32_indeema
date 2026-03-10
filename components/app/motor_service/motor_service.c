@@ -33,11 +33,11 @@ void motor_send_remote_command(motor_mode_t mode, float angle_deg, uint8_t prior
     xQueueSend(motor_cmd_queue, &cmd, 0);
 }
 
-void motor_service_push_accel_x(int16_t accel_x) {
+void motor_service_push_accel_z(float accel_z) {
     if (motor_cmd_queue == NULL) return;
     motor_cmd_t cmd = { 
         .type = MOTOR_CMD_PUSH_ACCEL, 
-        .accel_x = accel_x 
+        .accel_z = accel_z 
     };
     xQueueSend(motor_cmd_queue, &cmd, 0);
 }
@@ -47,45 +47,47 @@ static void motor_service_task(void *pvParameters) {
     static motor_cmd_t active_remote_cmd = {0}; 
     
     int current_steps = 0; 
-    int16_t latest_accel_x = 0;
+    float latest_accel_z = 0.0f;
 
     while (1) {
         
         while (xQueueReceive(motor_cmd_queue, &incoming_cmd, 0) == pdTRUE) {
             
             if (incoming_cmd.type == MOTOR_CMD_REMOTE_MODE) {
-                if (incoming_cmd.priority >= active_remote_cmd.priority) {
+                
+                if (active_remote_cmd.mode == MOTOR_MODE_REMOTE) {
                     active_remote_cmd = incoming_cmd;
-
+                }
+                else if (incoming_cmd.priority >= active_remote_cmd.priority) {
+                    active_remote_cmd = incoming_cmd;
+                    
                     if (incoming_cmd.mode != MOTOR_MODE_REMOTE) {
                         active_remote_cmd.priority = 0;
                         active_remote_cmd.lock = false;
                     }
                 }
-            } 
+            }
             else if (incoming_cmd.type == MOTOR_CMD_PUSH_ACCEL) {
-                latest_accel_x = incoming_cmd.accel_x;
+                latest_accel_z = incoming_cmd.accel_z;
             }
         }
 
         float target_angle = 0.0f;
 
-        if (active_remote_cmd.priority > 0 || active_remote_cmd.lock) {
+        if (active_remote_cmd.mode == MOTOR_MODE_REMOTE) {
             target_angle = active_remote_cmd.target_angle;
         } 
-        else {
-            if (active_remote_cmd.mode == MOTOR_MODE_JOYSTICK) {
-                joystick_pos_t pos;
-                if (xQueuePeek(joystick_get_pos_queue(), &pos, 0) == pdTRUE) {
-                    target_angle = pos.x * MAX_ANGLE; 
-                }
-            } 
-            else if (active_remote_cmd.mode == MOTOR_MODE_ACCEL) {
-                float normalized = (latest_accel_x + 16384.0f) / 32768.0f;
-                if (normalized < 0.0f) normalized = 0.0f;
-                if (normalized > 1.0f) normalized = 1.0f;
-                target_angle = normalized * MAX_ANGLE;
+        else if (active_remote_cmd.mode == MOTOR_MODE_JOYSTICK) {
+            joystick_pos_t pos;
+            if (xQueuePeek(joystick_get_pos_queue(), &pos, 0) == pdTRUE) {
+                target_angle = pos.x * MAX_ANGLE; 
             }
+        } 
+        else if (active_remote_cmd.mode == MOTOR_MODE_ACCEL) {
+            float normalized = (latest_accel_z + 1.0f) / 2.0f;
+            if (normalized < 0.0f) normalized = 0.0f;
+            if (normalized > 1.0f) normalized = 1.0f;
+            target_angle = normalized * MAX_ANGLE;
         }
 
         if (target_angle < 0.0f) target_angle = 0.0f;

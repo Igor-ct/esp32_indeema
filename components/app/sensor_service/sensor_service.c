@@ -74,10 +74,7 @@ bool sensor_service_read(sensor_data_t *data)
 #if CONFIG_SENSOR_ENABLE_BMP280
     if (bmp280_ok)
     {
-        int32_t raw_temp;
-
-        if (bmp280_read_raw(&raw_temp,
-                            &data->bmp280.pressure) == ESP_OK)
+        if (bmp280_read(&data->bmp280.temperature, &data->bmp280.pressure) == ESP_OK)
         {
             data->bmp280.valid = true;
         }

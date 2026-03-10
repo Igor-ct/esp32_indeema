@@ -10,3 +10,4 @@
 
 esp_err_t wifi_init_sta(void);
 
+void wifi_sta_stop_reconnect(void);

@@ -259,3 +259,6 @@ bool get_mqtt_connected(void) {
     return is_mqtt_connected;
 }
 
+void set_mqtt_connected(bool status) {
+    is_mqtt_connected = status;
+}

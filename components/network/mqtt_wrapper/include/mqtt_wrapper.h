@@ -16,3 +16,5 @@ void task_cmd_manager(void *pvParameters);
 esp_err_t mqtt_publish_message(const char *topic, const char *payload);
 
 bool get_mqtt_connected(void);
+
+void set_mqtt_connected(bool status);

@@ -74,13 +74,17 @@ static void led_service_task(void *pvParameters)
         {
             switch (btn_evt)
             {
-                case BTN_EVT_LONG_PRESS:
+               case BTN_EVT_LONG_PRESS:
                     led_power_on = !led_power_on;
-                    if (!led_power_on) ws2812_clear();
+                    ESP_LOGI(TAG, "Button Long Press: LED Power is now %s", led_power_on ? "ON" : "OFF");
+                    if (!led_power_on) {
+                        ws2812_clear();
+                    }
                     break;
 
                 case BTN_EVT_PRESS_DOWN:
                     led_locked = !led_locked;
+                    ESP_LOGI(TAG, "Button Press Down: LED is now %s", led_locked ? "LOCKED" : "UNLOCKED");
                     break;
 
                 case BTN_EVT_DOUBLE_CLICK:

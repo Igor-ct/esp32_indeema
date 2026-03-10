@@ -21,9 +21,12 @@ static void switch_wifi_mode(my_wifi_mode_t new_mode) {
     if (current_wifi_mode == new_mode) return; 
     ESP_LOGI(TAG, "Switching WiFi mode...");
 
+    if (current_wifi_mode == WIFI_STATE_STA) {
+        wifi_sta_stop_reconnect();
+    }
+
     if (current_wifi_mode != WIFI_STATE_OFF) {
         esp_wifi_stop();
-        esp_wifi_deinit();
     }
 
     if (new_mode == WIFI_STATE_STA)      wifi_init_sta(); 

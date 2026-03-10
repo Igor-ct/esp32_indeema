@@ -29,6 +29,7 @@ static const char *TAG = "wifi_AP";
 
 static esp_netif_t *ap_netif = NULL;
 extern bool is_wifi_driver_init;
+static bool is_ap_webserver_started = false;
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                     int32_t event_id, void* event_data)
@@ -102,6 +103,9 @@ esp_err_t wifi_init_softap(void)
     if (ret != ESP_OK) return ret;
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s channel:%d", ESP_WIFI_SSID, ESP_WIFI_CHANNEL);
-    start_webserver();
+    if (!is_ap_webserver_started) {
+        start_webserver(); //
+        is_ap_webserver_started = true;
+    }
     return ESP_OK;
 }

@@ -51,6 +51,13 @@ static EventGroupHandle_t s_wifi_event_group;
 static const char *TAG = "wifi_station";
 static int s_retry_num = 0;
 
+static bool is_mqtt_started = false;
+
+static bool allow_reconnect = true;
+
+void wifi_sta_stop_reconnect(void) {
+    allow_reconnect = false;
+}
 
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
@@ -60,18 +67,25 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         esp_mqtt_client_handle_t mqtt_client = get_mqtt_client_handle();
         if (mqtt_client != NULL) {
+            set_mqtt_connected(false); 
+            
             esp_mqtt_client_stop(mqtt_client);
             ESP_LOGW(TAG, "Wi-Fi lost. MQTT client stopped to save resources.");
         }
 
-        if (s_retry_num < ESP_MAXIMUM_RETRY) {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
+        if (allow_reconnect) {
+            if (s_retry_num < ESP_MAXIMUM_RETRY) {
+                esp_wifi_connect();
+                s_retry_num++;
+                ESP_LOGI(TAG, "retry to connect to the AP");
+            } else {
+                xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+                led_service_set_wifi_state(WIFI_LED_STA_ERROR); 
+            }
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-            led_service_set_wifi_state(WIFI_LED_STA_ERROR); 
         }
+        
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
@@ -95,6 +109,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 
 esp_err_t wifi_init_sta(void)
 {
+    allow_reconnect = true;
     s_retry_num = 0;
 
     if (s_wifi_event_group == NULL) {
@@ -163,7 +178,15 @@ esp_err_t wifi_init_sta(void)
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s", wifi_config.sta.ssid);
         led_service_set_wifi_state(WIFI_LED_ONLINE);
-        mqtt_app_start(); 
+        if (!is_mqtt_started) {
+            mqtt_app_start(); 
+            is_mqtt_started = true;
+        } else {
+            esp_mqtt_client_handle_t mqtt_client = get_mqtt_client_handle();
+            if (mqtt_client) {
+                esp_mqtt_client_start(mqtt_client); 
+            }
+        }
         return ESP_OK;
     } else {
         ESP_LOGE(TAG, "Failed to connect to SSID:%s", wifi_config.sta.ssid);

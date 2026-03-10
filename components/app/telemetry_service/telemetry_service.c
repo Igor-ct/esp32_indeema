@@ -28,7 +28,7 @@ static void sync_and_send_ble(void)
     
     if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
         snprintf(full_json, sizeof(full_json),
-                 "{\"env\":{\"t\":%.2f,\"h\":%.2f,\"p\":%ld},\"acc\":[%d,%d,%d]}",
+                 "{\"env\":{\"t\":%.2f,\"h\":%.2f,\"p\":%.2ld},\"acc\":[%.3f,%.3f,%.3f]}",
                  g_device_state.aht20.valid ? g_device_state.aht20.temperature : 0.0,
                  g_device_state.aht20.valid ? g_device_state.aht20.humidity : 0.0,
                  g_device_state.bmp280.valid ? (long)g_device_state.bmp280.pressure : 0,
@@ -66,7 +66,7 @@ static void telemetry_env_task(void *pvParameters)
             sync_and_send_ble();
 
             char json[128];
-            snprintf(json, sizeof(json), "{\"temp\":%.2f,\"hum\":%.2f,\"press\":%ld}",
+            snprintf(json, sizeof(json), "{\"temp\":%.2f,\"hum\":%.2f,\"press\":%.2f}",
                      local_data.aht20.temperature, local_data.aht20.humidity, local_data.bmp280.pressure);
             
             send_data("ENV", json);
@@ -100,10 +100,10 @@ static void telemetry_motion_task(void *pvParameters)
             sync_and_send_ble();
 
             char json[128];
-            snprintf(json, sizeof(json), "{\"accel\":[%d,%d,%d]}",
+            snprintf(json, sizeof(json), "{\"accel\":[%.3f,%.3f,%.3f]}",
                      local_data.accel.x, local_data.accel.y, local_data.accel.z);
             
-            motor_service_push_accel_x(local_data.accel.x);
+            motor_service_push_accel_z(local_data.accel.z);
             send_data("MOTION", json);
             send_data("MOTION", "\r\n");
             if(get_mqtt_connected()) mqtt_publish_message("esp-lection/motion", json);

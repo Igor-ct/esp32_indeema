@@ -58,8 +58,8 @@ esp_err_t joystick_button_init(void)
 
     ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_LONG_PRESS, NULL, button_cb_off_led, NULL));
     ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_PRESS_DOWN, NULL, button_cb_lock_led, NULL));
-    ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_DOUBLE_CLICK, NULL, button_cb_change_joystick, NULL));
-    ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_SINGLE_CLICK, NULL, button_cb_invert_joystick, NULL));
+    ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_DOUBLE_CLICK, NULL, button_cb_change_joystick, NULL)); 
+    //ESP_ERROR_CHECK(iot_button_register_cb(gpio_btn, BUTTON_EVENT_SINGLE_CLICK, NULL, button_cb_invert_joystick, NULL)); need to be rebind or off lock_led 
 
     ESP_LOGI(TAG, "Button initialized on GPIO %d", CONFIG_BUTTON_GPIO);
     return ESP_OK;

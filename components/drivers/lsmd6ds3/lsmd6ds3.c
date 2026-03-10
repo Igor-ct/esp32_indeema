@@ -2,6 +2,8 @@
 #include "spi.h"
 #include <string.h>
 
+#define LSM6DS3_ACCEL_SENSITIVITY_2G (0.061f / 1000.0f) 
+
 static spi_device_handle_t lsm_handle;
 
 esp_err_t lsm6ds3_init(int cs_pin) {
@@ -23,7 +25,7 @@ esp_err_t lsm6ds3_init(int cs_pin) {
     return spi_device_transmit(lsm_handle, &t);
 }
 
-esp_err_t lsm6ds3_read_accel(int16_t *x, int16_t *y, int16_t *z) {
+esp_err_t lsm6ds3_read_accel(float *x, float *y, float *z) {
     uint8_t tx_buf[7] = {0x28 | 0x80, 0, 0, 0, 0, 0, 0}; 
     uint8_t rx_buf[7] = {0};
 
@@ -35,9 +37,13 @@ esp_err_t lsm6ds3_read_accel(int16_t *x, int16_t *y, int16_t *z) {
 
     esp_err_t err = spi_device_transmit(lsm_handle, &t);
     if (err == ESP_OK) {
-        *x = (int16_t)((rx_buf[2] << 8) | rx_buf[1]);
-        *y = (int16_t)((rx_buf[4] << 8) | rx_buf[3]);
-        *z = (int16_t)((rx_buf[6] << 8) | rx_buf[5]);
+        int16_t raw_x = (int16_t)((rx_buf[2] << 8) | rx_buf[1]);
+        int16_t raw_y = (int16_t)((rx_buf[4] << 8) | rx_buf[3]);
+        int16_t raw_z = (int16_t)((rx_buf[6] << 8) | rx_buf[5]);
+        
+        *x = (float)raw_x * LSM6DS3_ACCEL_SENSITIVITY_2G;
+        *y = (float)raw_y * LSM6DS3_ACCEL_SENSITIVITY_2G;
+        *z = (float)raw_z * LSM6DS3_ACCEL_SENSITIVITY_2G;
     }
     return err;
 }
