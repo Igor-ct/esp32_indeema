@@ -1,0 +1,21 @@
+menu "OTA Configuration"
+
+    config FIRMWARE_UPGRADE_URL
+        string "Default Firmware Upgrade URL"
+        default "https://your-server.com/firmware.bin"
+        help
+            URL for downloading OTA firmware updates.
+
+    config SKIP_COMMON_NAME_CHECK
+        bool "Skip server certificate common name check"
+        default n
+        help
+            Skip the common name check of the server certificate. Useful for testing with self-signed certs.
+
+    config OTA_RECV_TIMEOUT
+        int "OTA Receive Timeout (ms)"
+        default 10000
+        help
+            Timeout for receiving OTA data over HTTPS.
+
+endmenu
