@@ -255,13 +255,13 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
             if (ble_led_state == 0) { 
                 led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
                 ESP_LOGI("BLE", "Command: LED OFF");
-            } 
+                } 
             else if (ble_led_state == 1) {
                 led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], priority);
                 ESP_LOGI("BLE", "Command: LED ON (R:%d G:%d B:%d)", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
             }
             else if (ble_led_state == 2) {
-                led_send_remote_command(LED_REMOTE_OFF, 0, 0, 0, priority);
+                led_send_remote_command(LED_REMOTE_AUTO, 0, 0, 0, priority);
                 ESP_LOGI("BLE", "Command: LED AUTO (Override disabled)");
             }
             return 0;
@@ -275,6 +275,7 @@ static int gatt_svr_chr_access_led(uint16_t conn_handle, uint16_t attr_handle,
                     led_send_remote_command(LED_REMOTE_ON, ble_led_color[0], ble_led_color[1], ble_led_color[2], priority);
                 }
                 
+
                 ESP_LOGI("BLE", "Color updated: %d,%d,%d", ble_led_color[0], ble_led_color[1], ble_led_color[2]);
                 return 0;
             }

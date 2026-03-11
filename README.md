@@ -112,6 +112,19 @@ The project implements the following FreeRTOS tasks to demonstrate multitasking 
     - Smooth Motion Logic: Implements non-blocking step-by-step movement with integrated delays (5 ms) to ensure stability.
     - State Feedback: Synchronizes servo visual state with stepper physical position.
 
+## DETAILS
+
+For detailed documentation on each module, please refer to the following Markdown files in the components folder:
+- Application Layer – [app.md](components/app/app.md)
+- Drivers Overview – [drivers.md](components/drivers/drivers.md) 
+- HAL (Hardware Abstraction Layer) – [hal.md](components/hal/hal.md)
+- System Infrastructure – [system.md](components/system/system.md)
+- Network Layer – [network.md](components/network/network.md)
+- System Utilities – [sys_utils.md](components/sys_utils/sys_utils.md)
+- User Interface – [ui.md](components/ui/ui.md)
+
+This section serves as a central reference to navigate through the full project documentation, detailing service APIs, architecture, hardware drivers, and system utilities.
+
 ## Build & Flash
 
 1. Configure the project (optional)
@@ -156,9 +169,10 @@ esp32_indeema/
 └── components/
     ├── configuration.md        # Project configuration parameters
     ├── app/                    # Application layer (business logic)
-    │   ├── data_bridge/        # Data exchange between services (event routing / queues / mediator)
+    │   ├── data_bridge/        # Data exchange between services (event routing / queues / mediator)//in future now its just a test example 
     │   ├── led_service/        # High-level LED logic (modes, states, effects)
     │   ├── telemetry_service/  # Telemetry aggregation and sensor data processing
+    │   ├── https_ota/          # Secure firmware update service over HTTPS (OTA updates)
     │   ├── motor_service/      # Motor control logic (stepper & servo coordination and control modes)
     │   ├── sensor_service/     # Sensor polling, data acquisition, and hardware driver orchestration
     │   ├── ble_service/        # BLE initialization and GATT server management
@@ -198,6 +212,5 @@ esp32_indeema/
     │  ├── joystick_controller/ # ADC reader, software noise filter, and zone/position event dispatcher
     │  └── ui.md                # User Interface overview
     └── legacy/                 # LEGACY(NOT USED ANYMORE)
-        ├── led_ctrl/           # LEGACY(LED CONTROL DRIVER)
-        └── legacy.md           # LEGACY OVERVIEW
+        └── led_ctrl/           # LEGACY(LED CONTROL DRIVER)
 ```

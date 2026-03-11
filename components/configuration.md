@@ -35,6 +35,13 @@ The settings are grouped into the following categories:
 -  `STEPPER_IN3_PIN` - GPIO number for the third phase (IN3) of the ULN2003 driver.
 -  `STEPPER_IN4_PIN` - GPIO number for the fourth  phase (IN4) of the ULN2003 driver.
 
+####
+
+- `FIRMWARE_UPGRADE_URL` - URL for downloading OTA firmware updates.
+- `SKIP_COMMON_NAME_CHECK` -Skip the common name check of the server certificate. Useful for testing with self-signed certs.
+- `OTA_RECV_TIMEOUT` - Timeout for receiving OTA data over HTTPS.
+
+
 ### UI
 
 #### Joystick Configuration

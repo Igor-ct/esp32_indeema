@@ -104,7 +104,7 @@ esp_err_t wifi_init_softap(void)
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s channel:%d", ESP_WIFI_SSID, ESP_WIFI_CHANNEL);
     if (!is_ap_webserver_started) {
-        start_webserver(); //
+        start_webserver(); 
         is_ap_webserver_started = true;
     }
     return ESP_OK;

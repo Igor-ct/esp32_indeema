@@ -3,13 +3,301 @@ The Network layer provides communication interfaces that allow the device to int
 It abstracts transport protocols and exposes services used by the application layer.
 
 Currently the following protocols are implemented:
-- Wi-Fi (STA/AP)
-- HTTP Server
-- MQTT
-- SNTP
-- Bluetooth Low Energy (BLE)
+- **Wi-Fi (STA/AP)**
+- **HTTP Server**
+- **MQTT**
+- **SNTP**
+- **Bluetooth Low Energy (BLE)**
 
 Each protocol is implemented as an independent component and communicates with the application layer through events, queues, or service APIs.
+
+## Wi-Fi Service
+
+The Wi-Fi service provides network connectivity for the device and supports two operating modes:
+
+Station mode (STA) - connects the device to an existing Wi-Fi network.
+
+Access Point mode (AP) - creates a Wi-Fi network that other devices can connect to.
+
+The service is responsible for initializing the Wi-Fi driver, handling connection events, managing reconnection logic, and starting network-dependent services once connectivity is available.
+
+### Station Mode (STA)
+
+Station mode allows the device to connect to an external Wi-Fi access point.
+
+#### Initialization
+
+Station mode is initialized using:
+```c
+wifi_init_sta()
+```
+During initialization the service:
+- initializes the Wi-Fi driver if it is not already started
+- registers Wi-Fi and IP event handlers
+- loads Wi-Fi credentials from NVS storage if they were previously saved
+- falls back to default credentials from configuration if no saved credentials exist
+- configures the Wi-Fi interface in STA mode
+- starts the connection process
+
+LED states are updated during the process to reflect connection status.
+
+#### Connection Handling
+
+The Wi-Fi event handler manages connection state changes:
+
+**On start**
+
+`WIFI_EVENT_STA_START`
+
+The device attempts to connect to the configured access point.
+
+**On disconnection**
+
+`WIFI_EVENT_STA_DISCONNECTED`
+
+The service:
+- stops the MQTT client to free resources
+- attempts reconnection up to a configured retry limit
+- updates LED status to indicate connection loss or failure
+
+Reconnection can be disabled using:
+```c
+wifi_sta_stop_reconnect()
+```
+
+**Successful Connection**
+
+When an IP address is received:
+
+`IP_EVENT_STA_GOT_IP`
+
+The service:
+- logs the assigned IP address
+- resets the retry counter
+- updates LED status
+- starts network dependent services
+
+This includes:
+- starting SNTP time synchronization
+- starting the HTTP server
+
+After a successful connection the MQTT client is started or restarted if it was previously initialized.
+
+### Access Point Mode (AP)
+
+Access Point mode allows the device to create its own Wi-Fi network.
+
+#### Initialization
+
+AP mode is started using:
+```c
+wifi_init_softap()
+```
+During initialization the service:
+- initializes the Wi-Fi driver if necessary
+- registers Wi-Fi event handlers
+- configures SSID, password, channel, and connection limits
+- enables WPA2 or WPA3 authentication depending on configuration
+- switches the Wi-Fi driver to AP mode
+- starts the Wi-Fi interface
+
+#### Client Connection Events
+
+The service handles client connection events:
+
+**Client connected**
+
+`WIFI_EVENT_AP_STACONNECTED`
+
+The system logs the device MAC address and updates the LED state.
+
+**Client disconnected**
+
+`WIFI_EVENT_AP_STADISCONNECTED`
+
+The disconnection reason is logged and the LED state is updated.
+
+#### Web Server
+
+When the AP mode starts successfully, the system launches the HTTP web server if it is not already running.
+This allows clients connected to the access point to interact with the device through the web interface.
+
+## HTTP Server
+
+The device includes a lightweight HTTP server used for basic device configuration through a web browser.
+
+The server exposes a small web interface consisting of an HTML page and a CSS stylesheet embedded directly into the firmware binary. These files are served to clients when accessing the root endpoint.
+
+**Endpoints**
+| Endpoint   | Method | Description                                            |
+|------------|--------|--------------------------------------------------------|
+| /		   | GET    | Serves the main  HTML configuration page               |
+| /index.css |	GET	  | Serves the CSS stylesheet used by the web interface    |
+| /save      |	POST	  | Receives Wi-Fi credentials submitted from the web form |
+
+### Wi-Fi Configuration
+
+The configuration page allows the user to submit Wi-Fi SSID and password through a form.
+
+When the form is submitted:
+- The HTTP server receives the POST request.
+- URL-encoded parameters are decoded.
+- The credentials are stored in NVS persistent storage.
+- The device sends a confirmation response.
+- The device performs a software reboot to apply the new configuration.
+
+**Stored parameters:**
+- `ssid`
+- `pass`
+
+These values are later used by the Wi-Fi subsystem during STA initialization.
+
+### Static Content
+
+The web interface files are compiled into the firmware binary and accessed using linker symbols:
+- `index_html`
+- `index.css`
+
+This avoids the need for a filesystem and keeps the HTTP interface lightweight.
+
+### Lifecycle
+
+The web server is started by the network subsystem using:
+
+`start_webserver()`
+
+and can be stopped using:
+
+`stop_webserver()`
+
+The server typically runs when:
+- the device operates in AP configuration mode
+- the device has network connectivity in STA mode
+
+## SNTP Time Synchronization
+
+This component handles system time synchronization using SNTP.
+
+### Initialization
+
+The SNTP service is configured and initialized by:
+```c
+sntp_service_init()
+```
+**During initialization:**
+- the SNTP configuration structure is created using the configured time server
+- a synchronization callback is registered
+- the SNTP service is initialized
+
+Optional **smooth time synchronization** can be enabled through configuration.
+
+### Network Event Handling
+
+The component listens for network events using:
+```c
+sntp_net_event_handler(...)
+```
+When the device receives an IP address (IP_EVENT_STA_GOT_IP):
+- a log message is printed
+- the SNTP synchronization process is started
+
+This ensures that time synchronization begins only after network connectivity is available.
+
+### Time Synchronization Callback
+
+When the system time is successfully synchronized, the following callback is executed:
+```c
+time_sync_notification_cb(...)
+```
+The callback performs the following steps:
+- Logs that time synchronization has completed.
+- Reads the current system time.
+- Applies the configured timezone.
+- Converts the timestamp to local time.
+- Prints the current local time to the system log.
+- The timezone used by the firmware is configured as:
+
+   `EET-2EEST,M3.5.0/3,M10.5.0/4`
+
+This corresponds to Eastern European Time with daylight saving adjustments.
+
+## MQTT Service
+
+The MQTT service provides a mechanism for the device to exchange messages with a broker. It handles commands for LEDs, motor control, and OTA updates, and manages the connection state.
+
+### Purpose
+
+Connect to the configured MQTT broker.
+- Subscribe to a command topic.
+- Publish status updates.
+- Parse incoming commands and forward them to the relevant services.
+- Manage connection state and retries.
+
+### Initialization
+
+The service is initialized using:
+```c
+mqtt_app_start();
+```
+
+During initialization:
+- MQTT client is created and configured with broker URI and client ID.
+- Last-will message is set for offline detection.
+- A command queue is created to store incoming commands.
+- Event handler for MQTT events is registered.
+- Two tasks are started:
+  - task_heartbeat - periodically publishes a heartbeat message.
+  - task_cmd_manager - processes commands from the queue.
+
+### Event Handling
+MQTT Connection Events
+- Connected: Subscribes to the command topic and publishes an "online" status.
+- Disconnected: Updates connection status.
+
+**Command Reception**
+
+When a message arrives on the command topic:
+- It is parsed as JSON.
+- Commands are categorized as:
+  - LED commands - color, state (on/off/auto)
+  - Motor commands - angle and mode
+  - OTA commands - firmware update URL
+
+Parsed commands are pushed to mqtt_cmd_queue for processing.
+
+### Command Processing
+
+`task_cmd_manager` handles commands:
+
+**LED Commands**
+- Sets RGB target values.
+- Sends LED commands to the LED service.
+- Publishes LED status updates on the status topic.
+
+**Motor Commands**
+- Updates target angle.
+- Sends motor commands with specified mode or angle.
+- Publishes motor status updates on the status topic.
+
+**OTA Commands**
+- Starts OTA update if a valid URL is provided.
+- Publishes OTA status updates on the status topic.
+
+### Heartbeat Task
+
+`task_heartbeat` periodically sends a status message "online" to the status topic every 60 seconds if the client is connected.
+
+### API
+```c
+esp_mqtt_client_handle_t get_mqtt_client_handle(void);
+bool get_mqtt_connected(void);
+void set_mqtt_connected(bool status);
+esp_err_t mqtt_publish_message(const char *topic, const char *payload);
+```
+- `get_mqtt_client_handle` - returns the MQTT client handle.
+- `get_mqtt_connected` - returns the current connection state.
+- `set_mqtt_connected` - manually sets the connection state.
+- `mqtt_publish_message` - publishes a message to the specified topic if connected.
 
 ## Bluetooth Low Energy (BLE)
 The BLE subsystem is implemented using the Apache NimBLE stack provided by ESP-IDF.
@@ -179,7 +467,7 @@ This service provides live sensor telemetry to connected BLE clients.
 - Read
 - Notify
 
-**Default telemetry format:** See [Telemetry Format](../components/app/app.md)
+**Default telemetry format:** See 
 
 The application layer periodically updates the telemetry buffer using:
 
@@ -202,7 +490,7 @@ This custom service allows remote control of the motor subsystem.
 **Payload format**
 ```
 Byte 0    → Motor mode
-Bytes 1–4 → Target angle (float)
+Bytes 1-4 → Target angle (float)
 ```
 
 **Example:**
